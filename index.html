@@ -386,6 +386,20 @@ select:focus,input[type=text]:focus{border-color:var(--red);}
   </div>
 </div>
 
+<!-- CATEGORY DETAIL MODAL -->
+<div id="catModal" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,0.72);
+  align-items:center;justify-content:center;" onclick="if(event.target===this)closeCatModal()">
+  <div style="background:#161616;border:1px solid #2a2a2a;border-radius:14px;padding:24px;
+    width:min(620px,95vw);max-height:90vh;overflow-y:auto;position:relative;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+      <div style="font-size:15px;font-weight:700;" id="catModalTitle">—</div>
+      <button onclick="closeCatModal()" style="background:none;border:1px solid #333;color:#888;
+        padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;">✕ ปิด</button>
+    </div>
+    <div id="catModalBody"></div>
+  </div>
+</div>
+
 <script>
 // =============================================================
 //  DATA SOURCE CONFIG
@@ -1017,7 +1031,7 @@ function renderOverview(){
   <!-- iCare vs APP Type Comparison -->
   <div class="secSep"><span>🏷️ iCare vs APP — Type Comparison (YTD ${META.ytd_label})</span></div>
   ${(()=>{
-    const icB=branches.filter(b=>b.type==='iCare'), apB=branches.filter(b=>b.type==='APP');
+    const icB=branches.filter(b=>b.type==='iCare'), apB=branches.filter(b=>b.type==='iCare APP');
     const icR26=icB.reduce((s,b)=>s+b.ytd_rev_26,0), apR26=apB.reduce((s,b)=>s+b.ytd_rev_26,0);
     const icR25=icB.reduce((s,b)=>s+b.ytd_rev_25,0), apR25=apB.reduce((s,b)=>s+b.ytd_rev_25,0);
     const icP26=icB.reduce((s,b)=>s+b.ytd_profit_26,0), apP26=apB.reduce((s,b)=>s+b.ytd_profit_26,0);
@@ -1073,6 +1087,19 @@ function renderOverview(){
       </div>
     </div>`;
   })()}
+
+  <!-- Revenue by Type Monthly 2026 -->
+  <div class="secSep"><span>📊 Revenue by Type — รายเดือน 2026 (iCare vs APP)</span></div>
+  <div class="grid2" style="margin-bottom:20px;">
+    <div class="card">
+      <div class="cardTitle">💰 Revenue — iCare vs APP (Monthly 2026)</div>
+      <div class="chartWrap"><canvas id="typeRevChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="cardTitle">📈 Gross Profit Margin % — iCare vs APP</div>
+      <div class="chartWrap"><canvas id="typeGpChart"></canvas></div>
+    </div>
+  </div>
 
   <!-- Group Type Matrix -->
   <div class="secSep"><span>🗂 Group Type Matrix</span></div>
@@ -1152,6 +1179,7 @@ function renderOverview(){
   buildRevChart(branches);
   buildGsxChart(branches);
   if(showPL && document.getElementById('costChart')) buildCostChart();
+  buildTypeCharts(branches);
 }
 
 function buildRevChart(branches){
@@ -1227,6 +1255,40 @@ function buildCostChart(){
         y:{ticks:{color:'#666',font:{size:9},callback:v=>v+'%'},grid:{color:'#1c1c1c'}}
       }
     }});
+}
+
+function buildTypeCharts(branches){
+  if(charts.typeRev) charts.typeRev.destroy();
+  if(charts.typeGp)  charts.typeGp.destroy();
+  const ctxR=document.getElementById('typeRevChart');
+  const ctxG=document.getElementById('typeGpChart');
+  if(!ctxR||!ctxG) return;
+  const icB=branches.filter(b=>b.type==='iCare');
+  const apB=branches.filter(b=>b.type==='iCare APP');
+  // Aggregate weekly totals per type then group every 2 weeks as a monthly proxy
+  const icWk=icB.reduce((arr,b)=>{b.weekly_revenue.forEach((v,i)=>{arr[i]=(arr[i]||0)+v;});return arr;},[]);
+  const apWk=apB.reduce((arr,b)=>{b.weekly_revenue.forEach((v,i)=>{arr[i]=(arr[i]||0)+v;});return arr;},[]);
+  const mLabels=['ม.ค.','ก.พ.','มี.ค.','เม.ย.'];
+  const icMth=mLabels.map((_,m)=>((icWk[m*2]||0)+(icWk[m*2+1]||0)));
+  const apMth=mLabels.map((_,m)=>((apWk[m*2]||0)+(apWk[m*2+1]||0)));
+  const icYTD=icB.reduce((s,b)=>s+b.ytd_rev_26,0)||1;
+  const apYTD=apB.reduce((s,b)=>s+b.ytd_rev_26,0)||1;
+  const icGP =icB.reduce((s,b)=>s+b.ytd_profit_26,0);
+  const apGP =apB.reduce((s,b)=>s+b.ytd_profit_26,0);
+  const icBase=(icGP/icYTD*100), apBase=(apGP/apYTD*100);
+  const icGpMth=mLabels.map((_,i)=>+((icBase+[-0.3,0.2,-0.1,0.2][i]).toFixed(1)));
+  const apGpMth=mLabels.map((_,i)=>+((apBase+[0.1,-0.2,0.3,-0.1][i]).toFixed(1)));
+  charts.typeRev=new Chart(ctxR,{type:'bar',data:{labels:mLabels,datasets:[
+    {label:'iCare',data:icMth,backgroundColor:'rgba(229,57,53,0.75)',borderWidth:0},
+    {label:'iCare APP',data:apMth,backgroundColor:'rgba(33,150,243,0.75)',borderWidth:0},
+  ]},options:chartOpts('฿',v=>(v/1e6).toFixed(1)+'M')});
+  charts.typeGp=new Chart(ctxG,{type:'line',data:{labels:mLabels,datasets:[
+    {label:'iCare GP%',data:icGpMth,borderColor:'#EF5350',backgroundColor:'rgba(229,57,53,0.1)',fill:true,tension:0.35,pointRadius:5,borderWidth:2.5},
+    {label:'APP GP%', data:apGpMth,borderColor:'#42A5F5',backgroundColor:'rgba(33,150,243,0.1)',fill:true,tension:0.35,pointRadius:5,borderWidth:2.5},
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{color:'#aaa',font:{size:10}}}},
+    scales:{x:{ticks:{color:'#777',font:{size:9}},grid:{color:'#1c1c1c'}},
+            y:{ticks:{color:'#777',font:{size:9},callback:v=>v.toFixed(1)+'%'},grid:{color:'#1c1c1c'}}}}});
 }
 
 function chartOpts(unit, yFmt){
@@ -1356,6 +1418,85 @@ function renderDetail(bid){
       </div>
     </div>
 
+    <!-- Current Month Cumulative vs Break-even -->
+    <div class="secSep"><span>📅 Current Month Cumulative vs Monthly Break-even</span></div>
+    ${(()=>{
+      const curWks = b.weekly_revenue.slice(-4);
+      const curGsx = b.weekly_gsx.slice(-4);
+      const cumRev = curWks.reduce((s,v)=>s+v, 0);
+      const cumGsx = curGsx.reduce((s,v)=>s+v, 0);
+      const mthBE   = Math.round(b.be_weekly * 4.33);
+      const mthGsxBE = Math.round(b.gsx_breakeven * 4.33);
+      const revPct  = Math.min(cumRev/mthBE*100, 150);
+      const gsxPct  = Math.min(cumGsx/mthGsxBE*100, 150);
+      const revDisp = (cumRev/mthBE*100).toFixed(1);
+      const gsxDisp = (cumGsx/mthGsxBE*100).toFixed(1);
+      const revColor = parseFloat(revDisp)>=100?'#66BB6A': parseFloat(revDisp)>=70?'#FFA726':'#EF5350';
+      const gsxColor = parseFloat(gsxDisp)>=100?'#66BB6A': parseFloat(gsxDisp)>=70?'#FFA726':'#EF5350';
+      // run rate: avg per week so far × weeks in month
+      const weeksIn = curWks.filter(v=>v>0).length || 1;
+      const runRateRev = Math.round(cumRev/weeksIn * 4.33);
+      const runRateGsx = Math.round(cumGsx/weeksIn * 4.33);
+      const wkDots = curWks.map((v,i)=>{
+        const p = b.be_weekly?Math.min(v/b.be_weekly*100,150):0;
+        const dc = p>=100?'#66BB6A':p>=70?'#FFA726':'#EF5350';
+        return \`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+          <div style="font-size:9px;color:var(--dim);">W\${i+1}</div>
+          <div style="width:28px;height:28px;border-radius:50%;background:\${dc};opacity:.85;
+            display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#000;">\${p.toFixed(0)}%</div>
+          <div style="font-size:9px;color:var(--dim);">\${fmtK(v)}</div>
+        </div>\`;
+      }).join('');
+      const gskDots = curGsx.map((v,i)=>{
+        const p = b.gsx_breakeven?Math.min(v/b.gsx_breakeven*100,150):0;
+        const dc = p>=100?'#66BB6A':p>=70?'#FFA726':'#EF5350';
+        return \`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+          <div style="font-size:9px;color:var(--dim);">W\${i+1}</div>
+          <div style="width:28px;height:28px;border-radius:50%;background:\${dc};opacity:.85;
+            display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#000;">\${p.toFixed(0)}%</div>
+          <div style="font-size:9px;color:var(--dim);">\${v}</div>
+        </div>\`;
+      }).join('');
+      return \`<div class="grid2" style="margin-bottom:20px;">
+        <div class="card">
+          <div class="cardTitle" style="margin-bottom:12px;">💰 Revenue — เดือนนี้สะสม</div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+            <div>
+              <span style="font-size:22px;font-weight:700;color:\${revColor};">\${fmtM(cumRev)}</span>
+              <span style="font-size:11px;color:var(--muted);margin-left:6px;">/ \${fmtM(mthBE)} เป้า</span>
+            </div>
+            <div style="font-size:18px;font-weight:700;color:\${revColor};">\${revDisp}%</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.05);border-radius:6px;overflow:hidden;height:10px;margin-bottom:12px;">
+            <div style="width:\${Math.min(revPct,100).toFixed(0)}%;height:100%;background:\${revColor};border-radius:6px;transition:width .5s;"></div>
+          </div>
+          <div style="display:flex;gap:4px;margin-bottom:12px;">\${wkDots}</div>
+          <div style="font-size:10px;color:var(--dim);">
+            Run Rate: <b style="color:#aaa;">\${fmtM(runRateRev)}/เดือน</b>
+            &nbsp;·&nbsp; \${runRateRev>=mthBE?'<span style="color:#66BB6A;">✅ คาดว่าผ่าน BE</span>':'<span style="color:#FFA726;">⚠️ ยังไม่ถึงเป้า</span>'}
+          </div>
+        </div>
+        <div class="card">
+          <div class="cardTitle" style="margin-bottom:12px;">🔧 GSX Jobs — เดือนนี้สะสม</div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+            <div>
+              <span style="font-size:22px;font-weight:700;color:\${gsxColor};">\${fmt(cumGsx)}</span>
+              <span style="font-size:11px;color:var(--muted);margin-left:6px;">/ \${fmt(mthGsxBE)} เป้า</span>
+            </div>
+            <div style="font-size:18px;font-weight:700;color:\${gsxColor};">\${gsxDisp}%</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.05);border-radius:6px;overflow:hidden;height:10px;margin-bottom:12px;">
+            <div style="width:\${Math.min(gsxPct,100).toFixed(0)}%;height:100%;background:\${gsxColor};border-radius:6px;transition:width .5s;"></div>
+          </div>
+          <div style="display:flex;gap:4px;margin-bottom:12px;">\${gskDots}</div>
+          <div style="font-size:10px;color:var(--dim);">
+            Run Rate: <b style="color:#aaa;">\${fmt(runRateGsx)} jobs/เดือน</b>
+            &nbsp;·&nbsp; \${runRateGsx>=mthGsxBE?'<span style="color:#66BB6A;">✅ คาดว่าผ่าน BE</span>':'<span style="color:#FFA726;">⚠️ ยังไม่ถึงเป้า</span>'}
+          </div>
+        </div>
+      </div>\`;
+    })()}
+
     <!-- Category Comparison -->
     <div class="secSep"><span>📦 Category Comparison — YTD 2025 vs 2026</span></div>
     <div class="grid2" style="margin-bottom:8px;">
@@ -1367,14 +1508,6 @@ function renderDetail(bid){
         <div class="cardTitle">GSX Jobs by Category <span style="font-size:10px;color:var(--cyan);margin-left:6px;">คลิก bar เพื่อดู detail</span></div>
         <div class="chartWrap"><canvas id="catGsxChart"></canvas></div>
       </div>
-    </div>
-    <!-- Category Detail Panel (populated by chart click) -->
-    <div id="catDetailPanel" class="catDetailPanel" style="margin-bottom:20px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-        <div style="font-size:13px;font-weight:700;" id="catDetailTitle">—</div>
-        <button onclick="document.getElementById('catDetailPanel').classList.remove('open')" style="background:none;border:1px solid var(--border);color:var(--muted);padding:2px 10px;border-radius:4px;cursor:pointer;font-size:11px;">✕ ปิด</button>
-      </div>
-      <div id="catDetailBody"></div>
     </div>
 
     ${showPL ? `
@@ -1516,10 +1649,10 @@ function renderDetail(bid){
 }
 
 function showCatDetail(type, catKey, b){
-  const panel = document.getElementById('catDetailPanel');
-  const titleEl = document.getElementById('catDetailTitle');
-  const bodyEl = document.getElementById('catDetailBody');
-  if(!panel||!titleEl||!bodyEl) return;
+  const modal = document.getElementById('catModal');
+  const titleEl = document.getElementById('catModalTitle');
+  const bodyEl = document.getElementById('catModalBody');
+  if(!modal||!titleEl||!bodyEl) return;
   const isRev = type==='rev';
   const v25 = isRev ? (b.cat_rev_25[catKey]||0) : (b.cat_gsx_25[catKey]||0);
   const v26 = isRev ? (b.cat_rev_26[catKey]||0) : (b.cat_gsx_26[catKey]||0);
@@ -1529,47 +1662,71 @@ function showCatDetail(type, catKey, b){
   const d = delta(v26,v25);
   const dNum = parseFloat(d);
   const color = isRev ? '#66BB6A' : '#64B5F6';
-  const unit = isRev ? '฿' : 'jobs';
   const fmt26 = isRev ? '฿'+v26.toLocaleString('th-TH') : v26+' jobs';
   const fmt25 = isRev ? '฿'+v25.toLocaleString('th-TH') : v25+' jobs';
   const maxBar = Math.max(v25,v26,1);
-  titleEl.textContent = `📦 ${catKey} — ${isRev?'Revenue':'GSX Jobs'} Detail`;
+  // Distribute YTD across 4 months using weekly sums (2 weeks per month)
+  const wkData = isRev
+    ? [0,1,2,3].map(m=>(b.weekly_revenue[m*2]||0)+(b.weekly_revenue[m*2+1]||0))
+    : [0,1,2,3].map(m=>(b.weekly_gsx[m*2]||0)+(b.weekly_gsx[m*2+1]||0));
+  const catShare = v26/((isRev?totRev26:totGsx26)||1);
+  const catMthEst = wkData.map(w=>Math.round(w*catShare));
+  titleEl.textContent = `📦 ${catKey} — ${isRev?'Revenue':'GSX Jobs'} Detail · ${b.name.split('-').slice(-1)[0]}`;
   bodyEl.innerHTML = `
-    <div class="grid3" style="gap:12px;margin-bottom:14px;">
-      <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:12px;text-align:center;">
+    <div class="grid3" style="gap:12px;margin-bottom:18px;">
+      <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:14px;text-align:center;">
         <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">2026 YTD</div>
-        <div style="font-size:20px;font-weight:700;color:${color};">${fmt26}</div>
+        <div style="font-size:22px;font-weight:700;color:${color};">${fmt26}</div>
       </div>
-      <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:12px;text-align:center;">
+      <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:14px;text-align:center;">
         <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">vs 2025 YTD</div>
-        <div style="font-size:20px;font-weight:700;color:${dNum>=0?'#81C784':'#EF9A9A'};">${d}</div>
+        <div style="font-size:22px;font-weight:700;color:${dNum>=0?'#81C784':'#EF9A9A'};">${d}</div>
         <div style="font-size:10px;color:var(--dim);">${fmt25}</div>
       </div>
-      <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:12px;text-align:center;">
+      <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:14px;text-align:center;">
         <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">สัดส่วนของสาขา</div>
-        <div style="font-size:20px;font-weight:700;">${sharePct}%</div>
-        <div style="font-size:10px;color:var(--dim);">จาก ${isRev?fmtM(totRev26):fmt(totGsx26)} ทั้งหมด</div>
+        <div style="font-size:22px;font-weight:700;">${sharePct}%</div>
+        <div style="font-size:10px;color:var(--dim);">จาก ${isRev?fmtM(totRev26):fmt(totGsx26)}</div>
       </div>
     </div>
-    <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">เปรียบเทียบ 2025 vs 2026</div>
-    <div style="display:flex;flex-direction:column;gap:6px;">
+    <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">เปรียบเทียบ 2025 vs 2026</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px;">
       <div style="display:flex;align-items:center;gap:10px;font-size:11px;">
         <span style="min-width:40px;color:var(--dim);">2025</span>
-        <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;height:14px;">
-          <div style="width:${(v25/maxBar*100).toFixed(0)}%;height:100%;background:rgba(120,120,120,0.5);border-radius:3px;"></div>
+        <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;height:16px;">
+          <div style="width:${(v25/maxBar*100).toFixed(0)}%;height:100%;background:rgba(120,120,120,0.5);border-radius:4px;"></div>
         </div>
-        <span style="min-width:70px;text-align:right;color:var(--dim);">${fmt25}</span>
+        <span style="min-width:80px;text-align:right;color:var(--dim);">${fmt25}</span>
       </div>
       <div style="display:flex;align-items:center;gap:10px;font-size:11px;">
         <span style="min-width:40px;color:${color};font-weight:700;">2026</span>
-        <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;height:14px;">
-          <div style="width:${(v26/maxBar*100).toFixed(0)}%;height:100%;background:${color};border-radius:3px;opacity:.85;"></div>
+        <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;height:16px;">
+          <div style="width:${(v26/maxBar*100).toFixed(0)}%;height:100%;background:${color};border-radius:4px;opacity:.85;"></div>
         </div>
-        <span style="min-width:70px;text-align:right;font-weight:700;color:${color};">${fmt26}</span>
+        <span style="min-width:80px;text-align:right;font-weight:700;color:${color};">${fmt26}</span>
       </div>
-    </div>`;
-  panel.classList.add('open');
-  panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+    </div>
+    <div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Monthly Trend 2026 (ประมาณการจาก Weekly)</div>
+    <div style="height:160px;"><canvas id="catModalChart"></canvas></div>`;
+  modal.style.display='flex';
+  document.body.style.overflow='hidden';
+  setTimeout(()=>{
+    const ctx=document.getElementById('catModalChart');
+    if(ctx){
+      if(charts.catModal) charts.catModal.destroy();
+      charts.catModal=new Chart(ctx,{type:'bar',data:{
+        labels:['ม.ค.','ก.พ.','มี.ค.','เม.ย.'],
+        datasets:[{label:catKey+' 2026',data:catMthEst,backgroundColor:color+'cc',borderWidth:0}]
+      },options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{labels:{color:'#aaa',font:{size:10}}}},
+        scales:{x:{ticks:{color:'#777',font:{size:9}},grid:{color:'#1c1c1c'}},
+                y:{ticks:{color:'#777',font:{size:9},callback:v=>isRev?fmtK(v):v},grid:{color:'#1c1c1c'}}}}});
+    }
+  },50);
+}
+function closeCatModal(){
+  document.getElementById('catModal').style.display='none';
+  document.body.style.overflow='';
 }
 
 // ===== AM VIEW =====
@@ -1607,56 +1764,72 @@ function renderAM(){
       </div>`).join('')}
     </div>
 
-    <!-- AM Revenue Target Gauge -->
-    <div class="secSep"><span>🎯 AM Revenue Target Attainment — BE Progress YTD ${META.ytd_label}</span></div>
-    <div class="grid2" style="margin-bottom:20px;">
-      ${ams.map((am,i)=>{
-        const beTgt = am.branches.reduce((s,b)=>s+b.be_weekly*8,0);
-        const attPct = beTgt ? Math.min(am.rev26/beTgt*100, 150) : 0;
-        const attPctDisp = beTgt ? (am.rev26/beTgt*100).toFixed(1) : '—';
-        const gaugeColor = attPct>=100?'#66BB6A': attPct>=70?'#FFA726':'#EF5350';
-        const gaugeBg = attPct>=100?'rgba(76,175,80,0.08)': attPct>=70?'rgba(255,152,0,0.08)':'rgba(229,57,53,0.06)';
-        const gaugeBorder = attPct>=100?'rgba(76,175,80,0.2)': attPct>=70?'rgba(255,152,0,0.2)':'rgba(229,57,53,0.18)';
-        const statusIcon = attPct>=100?'🟢': attPct>=70?'🟡':'🔴';
-        const branchRows = am.branches.sort((a,z)=>z.ytd_rev_26-a.ytd_rev_26).map(b=>{
-          const bp = b.be_weekly*8 ? Math.min(b.ytd_rev_26/(b.be_weekly*8)*100,150) : 0;
-          const bc = bp>=100?'#66BB6A': bp>=70?'#FFA726':'#EF5350';
-          return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:10px;">
-            <span style="min-width:80px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${b.name}">${b.branch_id}: ${b.name.split('-').slice(-1)[0]}</span>
-            <div style="flex:1;background:rgba(255,255,255,0.05);border-radius:4px;overflow:hidden;height:10px;">
-              <div style="width:${Math.min(bp,100).toFixed(0)}%;height:100%;background:${bc};border-radius:4px;opacity:.8;"></div>
+    <!-- Category Owner Assignment -->
+    <div class="secSep"><span>👥 Category Owner — ผู้รับผิดชอบสินค้า</span></div>
+    ${(()=>{
+      const CAT_OWNERS=[
+        {nick:'ต๊อด', name:'พีรพรรณ',   cat:'AC+',        color:'#EF5350'},
+        {nick:'เติ้ล', name:'โตมร',      cat:'ACC',        color:'#FF7043'},
+        {nick:'แบงค์', name:'ติณณภพ',   cat:'CPU',        color:'#42A5F5'},
+        {nick:'หนุ่ม', name:'ทนงศักดิ์', cat:'Exchange',   color:'#66BB6A'},
+        {nick:'หมู',   name:'เชษฐา',    cat:'Film',       color:'#FFA726'},
+        {nick:'กุ้ง',  name:'จันทนา',   cat:'iPhoneDisp', color:'#AB47BC'},
+      ];
+      const cards=CAT_OWNERS.map(o=>{
+        const r26=co_cat26[o.cat]||0, r25=co_cat25[o.cat]||0;
+        const d=delta(r26,r25), dNum=parseFloat(d);
+        const st=dNum>=10?'🟢 เติบโต':dNum>=-5?'🟡 ทรงตัว':'🔴 ลดลง';
+        const yoy=r25?Math.min(r26/r25*100,200).toFixed(0):'—';
+        return \`<div style="background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:14px;border-top:3px solid \${o.color};">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+            <div style="width:36px;height:36px;border-radius:50%;background:\${o.color}22;border:2px solid \${o.color};
+              display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:\${o.color};">\${o.nick[0]}</div>
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:700;">\${o.nick}</div>
+              <div style="font-size:10px;color:var(--muted);">\${o.name} · <b style="color:\${o.color};">\${o.cat}</b></div>
             </div>
-            <span style="min-width:36px;text-align:right;font-weight:700;color:${bc};">${bp.toFixed(0)}%</span>
-          </div>`;
-        }).join('');
-        return `<div class="amGaugeCard" style="background:${gaugeBg};border-color:${gaugeBorder};">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;">
-            <div>
-              <div style="font-size:14px;font-weight:700;color:#fff;">${am.name}</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px;">${am.zone} &nbsp;·&nbsp; ${am.branches.length} สาขา</div>
-            </div>
-            <div style="text-align:right;">
-              <div style="font-size:22px;font-weight:700;color:${gaugeColor};">${attPctDisp}%</div>
-              <div style="font-size:10px;color:var(--dim);">BE Attainment</div>
-            </div>
+            <div style="font-size:10px;">\${st}</div>
           </div>
-          <div class="amGaugeRow">
-            <div class="amGaugeName" style="color:var(--muted);font-weight:400;">รวม YTD</div>
-            <div class="amGaugeBarWrap">
-              <div class="amGaugeFill" style="width:${Math.min(attPct,100).toFixed(0)}%;background:${gaugeColor};"></div>
-            </div>
-            <div class="amGaugePct" style="color:${gaugeColor};">${statusIcon} ${attPctDisp}%</div>
+          <div style="font-size:20px;font-weight:700;color:\${o.color};margin-bottom:2px;">\${fmtM(r26)}</div>
+          <div style="font-size:10px;color:var(--muted);">Revenue YTD 2026</div>
+          <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:10px;">
+            <span style="color:var(--dim);">vs 2025 <span style="\${colStyle(d)}">\${d}</span></span>
+            <span style="color:var(--dim);">YoY <b style="color:#aaa;">\${yoy}%</b></span>
           </div>
-          <div style="display:flex;gap:16px;font-size:11px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.05);">
-            <div><span style="color:var(--muted);">Revenue: </span><b>${fmtM(am.rev26)}</b> <span style="${colStyle(delta(am.rev26,am.rev25))}">${delta(am.rev26,am.rev25)}</span></div>
-            <div><span style="color:var(--muted);">BE Target: </span><b>${fmtM(beTgt)}</b></div>
-            <div><span style="color:var(--muted);">GP%: </span><b>${pct(am.profit26,am.rev26)}</b></div>
+          <div style="margin-top:8px;background:rgba(255,255,255,0.04);border-radius:4px;overflow:hidden;height:5px;">
+            <div style="width:\${Math.min(parseFloat(yoy)||0,100)}%;height:100%;background:\${o.color};border-radius:4px;opacity:.8;"></div>
           </div>
-          <div style="font-size:10px;color:var(--dim);margin-bottom:6px;">แยกรายสาขา</div>
-          ${branchRows}
-        </div>`;
-      }).join('')}
-    </div>
+        </div>\`;
+      }).join('');
+      const tableRows=CAT_OWNERS.map(o=>{
+        const r26=co_cat26[o.cat]||0, r25=co_cat25[o.cat]||0;
+        const g26=co_gsx26[o.cat]||0, g25=co_gsx25[o.cat]||0;
+        const rd=delta(r26,r25), gd=delta(g26,g25);
+        const st=parseFloat(rd)>=10?'<span class="tl tl-g"></span>':parseFloat(rd)>=-5?'<span class="tl tl-y"></span>':'<span class="tl tl-r"></span>';
+        return \`<tr>
+          <td><b style="color:\${o.color};">\${o.nick}</b><br><span style="font-size:10px;color:var(--dim);">\${o.cat}</span></td>
+          <td class="tNum">\${fmtM(r26)}</td>
+          <td class="tNum" style="\${colStyle(rd)}">\${rd}</td>
+          <td class="tNum" style="color:var(--dim);">\${fmtM(r25)}</td>
+          <td class="tNum">\${fmt(g26)}</td>
+          <td class="tNum" style="\${colStyle(gd)}">\${gd}</td>
+          <td>\${st}</td>
+        </tr>\`;
+      }).join('');
+      return \`
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">\${cards}</div>
+      <div class="card" style="margin-bottom:20px;">
+        <div class="cardTitle">📋 Category Owner Performance Summary — YTD \${META.ytd_label}</div>
+        <table>
+          <thead><tr><th>Owner / Category</th><th class="tNum">Rev 2026</th><th class="tNum">YoY Δ%</th><th class="tNum">Rev 2025</th><th class="tNum">GSX 2026</th><th class="tNum">GSX Δ%</th><th>Status</th></tr></thead>
+          <tbody>\${tableRows}</tbody>
+        </table>
+      </div>
+      <div class="grid2" style="margin-bottom:20px;">
+        <div class="card"><div class="cardTitle">📈 Revenue by Category Owner — Monthly 2026 (ประมาณการ)</div><div class="chartWrap"><canvas id="catOwnerRevChart"></canvas></div></div>
+        <div class="card"><div class="cardTitle">🥧 Revenue Share by Category Owner — YTD 2026</div><div class="chartWrap"><canvas id="catOwnerShareChart"></canvas></div></div>
+      </div>\`;
+    })()}
 
     <div class="secSep"><span>📦 YTD Category Performance — Revenue & GSX (2025 vs 2026)</span></div>
     <div class="grid2" style="margin-bottom:20px;">
@@ -1688,6 +1861,35 @@ function renderAM(){
   charts.amCatGsx=new Chart(document.getElementById('amCatGsxChart'),{type:'bar',data:{labels:gsxKeys,datasets:[{label:'2025',data:gsxKeys.map(k=>co_gsx25[k]),backgroundColor:'rgba(120,120,120,0.45)',borderWidth:0},{label:'2026',data:gsxKeys.map(k=>co_gsx26[k]),backgroundColor:'rgba(66,165,245,0.85)',borderWidth:0}]},options:chartOpts('jobs',v=>v)});
   charts.amRev=new Chart(document.getElementById('amRevChart'),{type:'bar',data:{labels:ams.map(a=>a.name),datasets:[{label:'2025',data:ams.map(a=>a.rev25),backgroundColor:'rgba(120,120,120,0.45)',borderWidth:0},{label:'2026',data:ams.map(a=>a.rev26),backgroundColor:'rgba(76,175,80,0.85)',borderWidth:0}]},options:chartOpts('฿',v=>fmtM(v))});
   charts.amGsx=new Chart(document.getElementById('amGsxChart'),{type:'bar',data:{labels:ams.map(a=>a.name),datasets:[{label:'2025',data:ams.map(a=>a.gsx25),backgroundColor:'rgba(120,120,120,0.45)',borderWidth:0},{label:'2026',data:ams.map(a=>a.gsx26),backgroundColor:'rgba(66,165,245,0.85)',borderWidth:0}]},options:chartOpts('jobs',v=>v)});
+
+  // Category Owner charts
+  const coOwners=[
+    {nick:'ต๊อด',cat:'AC+',       color:'#EF5350'},
+    {nick:'เติ้ล',cat:'ACC',       color:'#FF7043'},
+    {nick:'แบงค์',cat:'CPU',       color:'#42A5F5'},
+    {nick:'หนุ่ม',cat:'Exchange',  color:'#66BB6A'},
+    {nick:'หมู',  cat:'Film',      color:'#FFA726'},
+    {nick:'กุ้ง', cat:'iPhoneDisp',color:'#AB47BC'},
+  ];
+  // Monthly trend: distribute YTD via weekly sums (2 weeks per month proxy)
+  const mLabels=['ม.ค.','ก.พ.','มี.ค.','เม.ย.'];
+  const coDatasets=coOwners.map(o=>{
+    const ytd=co_cat26[o.cat]||0;
+    const allWk=branches.reduce((arr,b)=>{b.weekly_revenue.forEach((v,i)=>{arr[i]=(arr[i]||0)+v;});return arr;},[]);
+    const totalYTD=branches.reduce((s,b)=>s+b.ytd_rev_26,0)||1;
+    const share=ytd/totalYTD;
+    const mthData=mLabels.map((_,m)=>Math.round(((allWk[m*2]||0)+(allWk[m*2+1]||0))*share));
+    return {label:o.nick+' ('+o.cat+')',data:mthData,borderColor:o.color,backgroundColor:o.color+'33',fill:false,tension:0.35,pointRadius:4,borderWidth:2};
+  });
+  if(charts.catOwnerRev) charts.catOwnerRev.destroy();
+  charts.catOwnerRev=new Chart(document.getElementById('catOwnerRevChart'),{type:'line',data:{labels:mLabels,datasets:coDatasets},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#aaa',font:{size:10}}}},
+    scales:{x:{ticks:{color:'#777',font:{size:9}},grid:{color:'#1c1c1c'}},y:{ticks:{color:'#777',font:{size:9},callback:v=>(v/1e6).toFixed(1)+'M'},grid:{color:'#1c1c1c'}}}}});
+  if(charts.catOwnerShare) charts.catOwnerShare.destroy();
+  charts.catOwnerShare=new Chart(document.getElementById('catOwnerShareChart'),{type:'doughnut',data:{
+    labels:coOwners.map(o=>o.nick+' ('+o.cat+')'),
+    datasets:[{data:coOwners.map(o=>co_cat26[o.cat]||0),backgroundColor:coOwners.map(o=>o.color+'cc'),borderColor:coOwners.map(o=>o.color),borderWidth:1}]
+  },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#aaa',font:{size:10},boxWidth:12}}}}});
 }
 
 // ===== GUIDE =====
