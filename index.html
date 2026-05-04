@@ -602,10 +602,13 @@ function _extendSession(){
 
 function _initGoogleSignIn(){
   google.accounts.id.initialize({
-    client_id: GOOGLE_CLIENT_ID,
-    callback:  _handleGoogleSignIn,
-    auto_select: false,
-    cancel_on_tap_outside: false,
+    client_id:              GOOGLE_CLIENT_ID,
+    callback:               _handleGoogleSignIn,
+    auto_select:            false,
+    cancel_on_tap_outside:  false,
+    // FIX: ปิด FedCM เพื่อหลีกเลี่ยง Cross-Origin-Opener-Policy error บน GitHub Pages
+    use_fedcm_for_prompt:   false,
+    itp_support:            true,
   });
   google.accounts.id.renderButton(
     document.getElementById('googleSignInBtn'),
@@ -614,7 +617,17 @@ function _initGoogleSignIn(){
 }
 
 function _handleGoogleSignIn(response){
-  // response.credential = Google ID Token
+  // FIX: Guard — response.credential อาจเป็น null/undefined ถ้า COOP block postMessage
+  if (!response || !response.credential || response.credential.length < 20) {
+    const errBox = document.getElementById('loginErr');
+    if(errBox){
+      errBox.textContent = '⚠️ Sign-in ถูกบล็อก (COOP) — ลอง Incognito / Firefox หรือ disable browser extensions';
+      errBox.style.display = 'block';
+    }
+    console.warn('[Auth] _handleGoogleSignIn: credential is null/empty', response);
+    return;
+  }
+  console.log('[Auth] credential received, length=' + response.credential.length);
   _idToken = response.credential;
   _fetchWithToken(_idToken);
 }
@@ -625,6 +638,14 @@ function _fetchWithToken(idToken){
   const msgEl   = document.getElementById('loadingMsg');
   const errEl   = document.getElementById('loadingError');
   const errBox  = document.getElementById('loginErr');
+
+  // FIX: ตรวจ idToken ก่อนส่ง — ป้องกันส่ง 'null'/'undefined' ไป Apps Script
+  if (!idToken || idToken === 'null' || idToken === 'undefined' || idToken.length < 20) {
+    const errBox = document.getElementById('loginErr');
+    if(errBox){ errBox.textContent = '⚠️ Token ไม่ถูกต้อง — กรุณา Login ใหม่อีกครั้ง'; errBox.style.display = 'block'; }
+    console.error('[Auth] _fetchWithToken: invalid idToken →', String(idToken).substring(0,30));
+    return;
+  }
 
   loginEl.style.display = 'none';
   loadEl.style.display  = 'flex';
