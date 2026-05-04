@@ -431,6 +431,15 @@ const MOCK_DATA = {"branches": [{"branch_id": 227, "name": "iCare-Paradise Park-
     Object.keys(b.cat_rev_26||{}).forEach(cat=>{
       b.monthly_cat_rev_26[cat]=D.map(d=>Math.round((b.cat_rev_26[cat]||0)*d));
     });
+    // GSX monthly per category
+    b.monthly_cat_gsx_26={};
+    Object.keys(b.cat_gsx_26||{}).forEach(cat=>{
+      b.monthly_cat_gsx_26[cat]=D.map(d=>Math.round((b.cat_gsx_26[cat]||0)*d));
+    });
+    // Monthly EBIT — สร้าง distribution ที่ทำให้บางเดือนขาดทุนได้
+    // ม.ค. 87%, ก.พ. 54%, มี.ค. -41%  → sum = 100% ของ YTD EBIT
+    const E=[0.87,0.54,-0.41];
+    b.monthly_ebit_26=E.map(e=>Math.round((b.pl_26.ebit||0)*e));
   });
   MOCK_DATA.meta.ytd_month_labels_th=['ม.ค.','ก.พ.','มี.ค.'];
 })();
@@ -1585,6 +1594,46 @@ function renderDetail(bid){
           </table>
         </div>
       </div>
+    </div>
+
+    <!-- Monthly EBIT 2026 -->
+    <div class="secSep"><span>📊 Monthly EBIT — ปี 2026 (กำไร / ขาดทุน ต่อเดือน)</span></div>
+    <div class="card" style="margin-bottom:20px;">
+      ${(()=>{
+        const allMonths=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+        const mEbit = b.monthly_ebit_26 || [];
+        const nClosed = mEbit.length;
+        let ytd=0, profitCount=0, lossCount=0, worstMonth='—', worstVal=0;
+        const cards = allMonths.map((m,i)=>{
+          if(i>=nClosed){
+            return `<div style="background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:8px;padding:10px 8px;text-align:center;min-width:76px;flex:1;">
+              <div style="font-size:9px;color:var(--muted);margin-bottom:4px;">${m} 2026</div>
+              <div style="font-size:18px;margin:4px 0;">⏳</div>
+              <div style="font-size:9px;color:var(--dim);">ยังไม่ปิด</div>
+            </div>`;
+          }
+          const v=mEbit[i]; ytd+=v;
+          const isProfit=v>=0;
+          if(isProfit) profitCount++; else lossCount++;
+          if(v<worstVal){worstVal=v;worstMonth=m;}
+          const c=isProfit?'#66BB6A':'#EF5350';
+          const bg=isProfit?'rgba(76,175,80,0.08)':'rgba(239,83,80,0.15)';
+          const bdr=isProfit?'rgba(76,175,80,0.3)':'rgba(239,83,80,0.4)';
+          return `<div style="background:${bg};border:1px solid ${bdr};border-radius:8px;padding:10px 8px;text-align:center;min-width:76px;flex:1;">
+            <div style="font-size:9px;color:var(--muted);margin-bottom:4px;">${m} 2026</div>
+            <div style="font-size:15px;font-weight:700;color:${c};margin:4px 0;">${v>=0?'+':''}${fmtK(v)}</div>
+            <div style="font-size:9px;color:${c};">${isProfit?'กำไร':'ขาดทุน'}</div>
+          </div>`;
+        }).join('');
+        const ytdColor=ytd>=0?'#66BB6A':'#EF5350';
+        return `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">${cards}</div>
+        <div style="font-size:11px;color:var(--muted);display:flex;gap:18px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:10px;">
+          <span>กำไร: <b style="color:#66BB6A;">${profitCount} เดือน</b></span>
+          <span>ขาดทุน: <b style="color:#EF5350;">${lossCount} เดือน</b></span>
+          <span>EBIT YTD: <b style="color:${ytdColor};">${ytd>=0?'+':''}${fmtK(ytd)}</b></span>
+          ${worstMonth!=='—'?`<span>เดือนแย่สุด: <b style="color:#EF5350;">${worstMonth} (${fmtK(worstVal)})</b></span>`:''}
+        </div>`;
+      })()}
     </div>` : ''}`;
 
   // Weekly Revenue chart — last 8 weeks only
@@ -1660,7 +1709,7 @@ function showCatDetail(type, catKey, b){
   const mLabels = (META.ytd_month_labels_th||[]).length ? META.ytd_month_labels_th : ['ม.ค.','ก.พ.','มี.ค.'];
   const catMthEst = isRev
     ? (b.monthly_cat_rev_26 && b.monthly_cat_rev_26[catKey] ? b.monthly_cat_rev_26[catKey] : [])
-    : []; // GSX ไม่มี monthly breakdown per category ในระบบ
+    : (b.monthly_cat_gsx_26 && b.monthly_cat_gsx_26[catKey] ? b.monthly_cat_gsx_26[catKey] : []);
   titleEl.textContent = `📦 ${catKey} — ${isRev?'Revenue':'GSX Jobs'} Detail · ${b.name.split('-').slice(-1)[0]}`;
   bodyEl.innerHTML = `
     <div class="grid3" style="gap:12px;margin-bottom:18px;">
@@ -1696,7 +1745,7 @@ function showCatDetail(type, catKey, b){
         <span style="min-width:80px;text-align:right;font-weight:700;color:${color};">${fmt26}</span>
       </div>
     </div>
-    ${catMthEst.length ? `<div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Monthly Trend 2026 — ข้อมูลจาก Sheet: Revenue</div>
+    ${catMthEst.length ? `<div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Monthly Trend 2026 — ${isRev?'ข้อมูลจาก Sheet: Revenue':'GSX Jobs รายเดือน'}</div>
     <div style="height:160px;"><canvas id="catModalChart"></canvas></div>` : ''}` ;
   modal.style.display='flex';
   document.body.style.overflow='hidden';
