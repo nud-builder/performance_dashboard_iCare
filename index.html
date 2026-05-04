@@ -375,6 +375,7 @@ select:focus,input[type=text]:focus{border-color:var(--red);}
     <button class="tabBtn" data-tab="overview" onclick="showTab('overview')">📊 Overview</button>
     <button class="tabBtn" data-tab="detail" onclick="showTab('detail')">🏪 Branch Detail</button>
     <button class="tabBtn" data-tab="am" onclick="showTab('am')">👤 AM View</button>
+    <button class="tabBtn" data-tab="pl" onclick="showTab('pl')">💰 P&L</button>
     <button class="tabBtn" data-tab="guide" onclick="showTab('guide')">📖 วิธีการอ่านข้อมูล</button>
   </div>
 
@@ -382,6 +383,7 @@ select:focus,input[type=text]:focus{border-color:var(--red);}
     <div id="tab-overview"></div>
     <div id="tab-detail" style="display:none;"></div>
     <div id="tab-am" style="display:none;"></div>
+    <div id="tab-pl" style="display:none;"></div>
     <div id="tab-guide" style="display:none;"></div>
   </div>
 </div>
@@ -833,9 +835,11 @@ function destroyCharts(){ Object.values(charts).forEach(c=>c&&c.destroy&&c.destr
 
 function setupTabAccess(){
   const role = currentUser.role;
+  const showPL = currentUser.showPL;
   document.querySelectorAll('.tabBtn').forEach(b=>{
     const tab = b.dataset.tab;
     if(tab==='am') b.style.display = (role==='BM')?'none':'';
+    if(tab==='pl') b.style.display = showPL?'':'none';
   });
 }
 
@@ -868,7 +872,7 @@ function plColStyle(label, v25, v26){
 }
 
 function showTab(tab){
-  ['overview','detail','am','guide'].forEach(t=>{
+  ['overview','detail','am','pl','guide'].forEach(t=>{
     document.getElementById('tab-'+t).style.display = (t===tab)?'':'none';
   });
   document.querySelectorAll('.tabBtn').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
@@ -876,6 +880,7 @@ function showTab(tab){
   if(tab==='overview') renderOverview();
   else if(tab==='detail') renderDetail(currentBranch);
   else if(tab==='am') renderAM();
+  else if(tab==='pl') renderPL();
   else if(tab==='guide') renderGuide();
 }
 
@@ -1596,44 +1601,6 @@ function renderDetail(bid){
       </div>
     </div>
 
-    <!-- Monthly EBIT 2026 -->
-    <div class="secSep"><span>📊 Monthly EBIT — ปี 2026 (กำไร / ขาดทุน ต่อเดือน)</span></div>
-    <div class="card" style="margin-bottom:20px;">
-      ${(()=>{
-        const allMonths=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-        const mEbit = b.monthly_ebit_26 || [];
-        const nClosed = mEbit.length;
-        let ytd=0, profitCount=0, lossCount=0, worstMonth='—', worstVal=0;
-        const cards = allMonths.map((m,i)=>{
-          if(i>=nClosed){
-            return `<div style="background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:8px;padding:10px 8px;text-align:center;min-width:76px;flex:1;">
-              <div style="font-size:9px;color:var(--muted);margin-bottom:4px;">${m} 2026</div>
-              <div style="font-size:18px;margin:4px 0;">⏳</div>
-              <div style="font-size:9px;color:var(--dim);">ยังไม่ปิด</div>
-            </div>`;
-          }
-          const v=mEbit[i]; ytd+=v;
-          const isProfit=v>=0;
-          if(isProfit) profitCount++; else lossCount++;
-          if(v<worstVal){worstVal=v;worstMonth=m;}
-          const c=isProfit?'#66BB6A':'#EF5350';
-          const bg=isProfit?'rgba(76,175,80,0.08)':'rgba(239,83,80,0.15)';
-          const bdr=isProfit?'rgba(76,175,80,0.3)':'rgba(239,83,80,0.4)';
-          return `<div style="background:${bg};border:1px solid ${bdr};border-radius:8px;padding:10px 8px;text-align:center;min-width:76px;flex:1;">
-            <div style="font-size:9px;color:var(--muted);margin-bottom:4px;">${m} 2026</div>
-            <div style="font-size:15px;font-weight:700;color:${c};margin:4px 0;">${v>=0?'+':''}${fmtK(v)}</div>
-            <div style="font-size:9px;color:${c};">${isProfit?'กำไร':'ขาดทุน'}</div>
-          </div>`;
-        }).join('');
-        const ytdColor=ytd>=0?'#66BB6A':'#EF5350';
-        return `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">${cards}</div>
-        <div style="font-size:11px;color:var(--muted);display:flex;gap:18px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:10px;">
-          <span>กำไร: <b style="color:#66BB6A;">${profitCount} เดือน</b></span>
-          <span>ขาดทุน: <b style="color:#EF5350;">${lossCount} เดือน</b></span>
-          <span>EBIT YTD: <b style="color:${ytdColor};">${ytd>=0?'+':''}${fmtK(ytd)}</b></span>
-          ${worstMonth!=='—'?`<span>เดือนแย่สุด: <b style="color:#EF5350;">${worstMonth} (${fmtK(worstVal)})</b></span>`:''}
-        </div>`;
-      })()}
     </div>` : ''}`;
 
   // Weekly Revenue chart — last 8 weeks only
@@ -2090,6 +2057,498 @@ GP% = Gross Profit ÷ Revenue × 100
       ห้ามแชร์ข้อมูลภายนอกองค์กร
     </div>
   </div>`;
+}
+
+// ===== P&L TAB =====
+let plFilterType = 'all'; // 'all' | 'iCare' | 'APP'
+let plSortMode = 'ebit';  // 'ebit' | 'profit' | 'loss' | 'name'
+let plModalBranch = null;
+
+function renderPL(){
+  const branches = getAccessibleBranches();
+  const el = document.getElementById('tab-pl');
+  if(!el) return;
+
+  // คำนวณ monthly distribution สำหรับ P&L
+  const D=[0.31,0.33,0.36];
+  const mLabels = (META.ytd_month_labels_th||[]).length ? META.ytd_month_labels_th : ['ม.ค.','ก.พ.','มี.ค.'];
+  const nM = mLabels.length;
+
+  // เตรียมข้อมูลต่อ branch + monthly estimate
+  const allData = branches.map(b=>{
+    const p26=b.pl_26, p25=b.pl_25;
+    const mRev26   = b.monthly_rev_26   || D.map(d=>Math.round(p26.rev*d));
+    const mGP26    = D.map(d=>Math.round(p26.gp*d));
+    const mFixed26 = D.map(d=>Math.round(p26.fixed*d));
+    const mVar26   = D.map(d=>Math.round(p26.variable*d));
+    const mRent26  = D.map(d=>Math.round((p26.expenses-p26.fixed-p26.variable)*d*0.45));
+    const mOther26 = D.map(d=>Math.round((p26.expenses-p26.fixed-p26.variable)*d*0.55));
+    const mEbit26  = b.monthly_ebit_26  || D.map(d=>Math.round(p26.ebit*d));
+    return { b, p25, p26, mRev26, mGP26, mFixed26, mVar26, mRent26, mOther26, mEbit26, mLabels, nM };
+  });
+
+  // Branch ranking
+  const sorted=[...allData].sort((a,b)=>b.p26.ebit-a.p26.ebit);
+  const profitable = sorted.filter(x=>x.p26.ebit>=0).slice(0,10);
+  const loss = sorted.filter(x=>x.p26.ebit<0).reverse().slice(0,10);
+
+  // Filter + sort for main table
+  const filtered = allData
+    .filter(x=> plFilterType==='all' || x.b.type===plFilterType)
+    .sort((a,b)=> plSortMode==='name' ? a.b.name.localeCompare(b.b.name) : b.p26.ebit-a.p26.ebit);
+
+  // Summary KPIs
+  const totEbit26 = allData.reduce((s,x)=>s+x.p26.ebit,0);
+  const totRev26  = allData.reduce((s,x)=>s+x.p26.rev,0);
+  const totGP26   = allData.reduce((s,x)=>s+x.p26.gp,0);
+  const profitBranch = allData.filter(x=>x.p26.ebit>=0).length;
+  const lossBranch   = allData.filter(x=>x.p26.ebit<0).length;
+  const ebitMargin   = totRev26 ? (totEbit26/totRev26*100).toFixed(1) : '0.0';
+  const gpMargin     = totRev26 ? (totGP26/totRev26*100).toFixed(1) : '0.0';
+
+  function ebitCell(v){
+    const c=v>=0?'#81C784':'#EF9A9A';
+    return `<td style="text-align:right;font-weight:700;color:${c};">${v>=0?'+':''}${fmtK(v)}</td>`;
+  }
+  function monthCell(v){
+    const c=v>=0?'#A5D6A7':'#EF9A9A';
+    return `<td style="text-align:right;color:${c};font-size:11px;">${v>=0?'+':''}${fmtK(v)}</td>`;
+  }
+
+  // Main table rows
+  const tableRows = filtered.map(({b,p26,mEbit26})=>{
+    const brName=b.name.split('-').slice(1).join('-')||b.name;
+    const monthCells = mEbit26.slice(0,nM).map(v=>monthCell(v)).join('');
+    const pendCells  = Array(Math.max(0,3-nM)).fill('<td style="color:var(--dim);text-align:right;font-size:10px;">⏳</td>').join('');
+    const typeBadge = b.type==='iCare'
+      ? `<span class="badge badge-icare">iCare</span>`
+      : `<span class="badge badge-app">APP</span>`;
+    return `<tr style="cursor:pointer;" onclick="showPlModal(${b.branch_id})">
+      <td><b style="color:#64B5F6;">${b.branch_id}: ${brName} ↗</b></td>
+      <td>${typeBadge}</td>
+      ${monthCells}${pendCells}
+      ${ebitCell(p26.ebit)}
+      <td style="text-align:right;font-size:10px;color:var(--muted);">${totRev26>0?(p26.ebit/p26.rev*100).toFixed(1)+'%':'—'}</td>
+    </tr>`;
+  }).join('');
+
+  // Ranking bars helper
+  function rankBar(label,ebit,maxVal,isLoss){
+    const pct=maxVal?Math.abs(ebit)/maxVal*100:0;
+    const c=isLoss?'#EF5350':'#66BB6A';
+    const short=label.split('-').pop()||label;
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11px;">
+      <div style="min-width:110px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${short}</div>
+      <div style="flex:1;background:rgba(255,255,255,0.05);border-radius:3px;height:14px;overflow:hidden;">
+        <div style="width:${pct.toFixed(0)}%;height:100%;background:${c};border-radius:3px;opacity:.85;"></div>
+      </div>
+      <div style="min-width:60px;text-align:right;font-weight:700;color:${c};">${ebit>=0?'+':''}${fmtK(ebit)}</div>
+    </div>`;
+  }
+
+  const maxProfit = profitable.length ? Math.max(...profitable.map(x=>x.p26.ebit),1) : 1;
+  const maxLoss   = loss.length ? Math.max(...loss.map(x=>Math.abs(x.p26.ebit)),1) : 1;
+
+  el.innerHTML=`
+  <div style="padding:20px;">
+
+    <!-- KPI Summary -->
+    <div class="grid4" style="margin-bottom:20px;">
+      <div class="kpiCard green">
+        <div class="kpiLabel">EBIT YTD รวม</div>
+        <div class="kpiValue" style="color:${totEbit26>=0?'#66BB6A':'#EF9A9A'};">${totEbit26>=0?'+':''}${fmtK(totEbit26)}</div>
+        <div class="kpiSub">EBIT Margin: <b>${ebitMargin}%</b></div>
+      </div>
+      <div class="kpiCard blue">
+        <div class="kpiLabel">GP Margin รวม</div>
+        <div class="kpiValue">${gpMargin}%</div>
+        <div class="kpiSub">GP: ${fmtM(totGP26)}</div>
+      </div>
+      <div class="kpiCard" style="border-color:rgba(76,175,80,0.3);">
+        <div class="kpiLabel">สาขากำไร</div>
+        <div class="kpiValue" style="color:#66BB6A;">${profitBranch} สาขา</div>
+        <div class="kpiSub" style="color:var(--muted);">จาก ${allData.length} ทั้งหมด</div>
+      </div>
+      <div class="kpiCard" style="border-color:rgba(239,83,80,0.3);">
+        <div class="kpiLabel">สาขาขาดทุน</div>
+        <div class="kpiValue" style="color:#EF5350;">${lossBranch} สาขา</div>
+        <div class="kpiSub" style="color:var(--muted);">คิดเป็น ${allData.length>0?(lossBranch/allData.length*100).toFixed(0):0}%</div>
+      </div>
+    </div>
+
+    <!-- Branch Ranking -->
+    <div class="secSep"><span>🏆 Branch Ranking — เรียงตาม EBIT YTD</span></div>
+    <div class="grid2" style="margin-bottom:20px;">
+      <div class="card">
+        <div class="cardTitle" style="color:#66BB6A;">✅ กำไรมากสุด (Top ${profitable.length})</div>
+        <div style="margin-top:10px;">
+          ${profitable.map((x,i)=>`
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11px;">
+            <div style="min-width:18px;color:var(--dim);font-size:10px;">${i+1}</div>
+            <div style="min-width:110px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
+                 title="${x.b.name}">${x.b.name.split('-').slice(-2).join('-')}</div>
+            <div style="flex:1;background:rgba(255,255,255,0.05);border-radius:3px;height:14px;overflow:hidden;">
+              <div style="width:${(x.p26.ebit/maxProfit*100).toFixed(0)}%;height:100%;background:#66BB6A;border-radius:3px;opacity:.85;"></div>
+            </div>
+            <div style="min-width:60px;text-align:right;font-weight:700;color:#81C784;">+${fmtK(x.p26.ebit)}</div>
+          </div>`).join('')}
+          ${profitable.length===0?'<div style="color:var(--dim);font-size:11px;padding:12px 0;">ไม่มีสาขากำไร</div>':''}
+        </div>
+      </div>
+      <div class="card">
+        <div class="cardTitle" style="color:#EF5350;">❌ ขาดทุนมากสุด (Top ${loss.length})</div>
+        <div style="margin-top:10px;">
+          ${loss.map((x,i)=>`
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11px;">
+            <div style="min-width:18px;color:var(--dim);font-size:10px;">${i+1}</div>
+            <div style="min-width:110px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
+                 title="${x.b.name}">${x.b.name.split('-').slice(-2).join('-')}</div>
+            <div style="flex:1;background:rgba(255,255,255,0.05);border-radius:3px;height:14px;overflow:hidden;">
+              <div style="width:${(Math.abs(x.p26.ebit)/maxLoss*100).toFixed(0)}%;height:100%;background:#EF5350;border-radius:3px;opacity:.85;"></div>
+            </div>
+            <div style="min-width:60px;text-align:right;font-weight:700;color:#EF9A9A;">${fmtK(x.p26.ebit)}</div>
+          </div>`).join('')}
+          ${loss.length===0?'<div style="color:var(--dim);font-size:11px;padding:12px 0;">ไม่มีสาขาขาดทุน 🎉</div>':''}
+        </div>
+      </div>
+    </div>
+
+    <!-- Monthly P&L Table -->
+    <div class="secSep"><span>📅 Monthly P&L — ทุกสาขา ปี 2026</span></div>
+    <div class="card" style="margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <span style="font-size:11px;color:var(--muted);">Filter:</span>
+        ${['all','iCare','APP'].map(t=>`
+          <button onclick="plFilterType='${t}';renderPL();"
+            style="font-size:11px;padding:4px 12px;border-radius:6px;cursor:pointer;border:1px solid var(--border);
+            background:${plFilterType===t?'var(--cyan)':'transparent'};color:${plFilterType===t?'#000':'var(--muted)'};">
+            ${t==='all'?'ทั้งหมด':t}
+          </button>`).join('')}
+        <span style="font-size:11px;color:var(--muted);margin-left:12px;">เรียง:</span>
+        ${[['ebit','EBIT YTD'],['name','ชื่อสาขา']].map(([v,l])=>`
+          <button onclick="plSortMode='${v}';renderPL();"
+            style="font-size:11px;padding:4px 12px;border-radius:6px;cursor:pointer;border:1px solid var(--border);
+            background:${plSortMode===v?'var(--cyan)':'transparent'};color:${plSortMode===v?'#000':'var(--muted)'};">
+            ${l}
+          </button>`).join('')}
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:11px;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border);">
+              <th style="text-align:left;padding:6px 8px;color:var(--muted);white-space:nowrap;">Branch</th>
+              <th style="text-align:center;padding:6px 8px;color:var(--muted);">Type</th>
+              ${mLabels.map(m=>`<th style="text-align:right;padding:6px 8px;color:#A5D6A7;">${m}</th>`).join('')}
+              ${Array(Math.max(0,3-nM)).fill(0).map((_,i)=>`<th style="text-align:right;padding:6px 8px;color:#FFD700;">${['เม.ย.','พ.ค.','มิ.ย.'][nM+i]||''}⏳</th>`).join('')}
+              <th style="text-align:right;padding:6px 8px;color:#FFD700;">EBIT YTD</th>
+              <th style="text-align:right;padding:6px 8px;color:var(--muted);">% Rev</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRows}
+          </tbody>
+        </table>
+      </div>
+      <div style="font-size:10px;color:var(--dim);margin-top:8px;">คลิกชื่อสาขา ↗ เพื่อดูรายละเอียด P&L รายเดือน · ⏳ = ยังไม่ปิดบัญชี</div>
+    </div>
+
+    <!-- Expense Comparison -->
+    <div class="secSep"><span>🏢 ค่าใช้จ่าย — เปรียบเทียบ YTD 2025 vs 2026</span></div>
+    <div class="card" style="margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+        <span style="font-size:11px;color:var(--muted);">ประเภทค่าใช้จ่าย:</span>
+        <select id="plExpenseSelector" onchange="updatePLExpenseView(this.value)"
+          style="background:#1c1c1c;color:var(--text);border:1px solid var(--border);border-radius:6px;
+          padding:6px 10px;font-size:11px;font-family:var(--font);cursor:pointer;outline:none;">
+          <option value="rent">20 Rental - Store</option>
+          <option value="da">21 D&amp;A - Store</option>
+          <option value="labor">Personnel &amp; Commission</option>
+          <option value="other">Other Expenses</option>
+          <option value="total">Total Expenses</option>
+        </select>
+      </div>
+      <div class="grid2">
+        <div class="chartWrap"><canvas id="plExpenseChart"></canvas></div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;" id="plExpenseTable">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border);">
+                <th style="text-align:left;padding:5px 8px;color:var(--muted);">Branch</th>
+                <th style="text-align:right;padding:5px 8px;color:var(--muted);">YTD 2025</th>
+                <th style="text-align:right;padding:5px 8px;color:var(--muted);">YTD 2026</th>
+                <th style="text-align:right;padding:5px 8px;color:var(--muted);">Δ YoY</th>
+                <th style="text-align:right;padding:5px 8px;color:var(--muted);">% of Rev</th>
+              </tr>
+            </thead>
+            <tbody id="plExpTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- P&L Forecast -->
+    <div class="secSep"><span>🔮 P&L Forecast — คาดการณ์ผลประกอบการ 2026</span></div>
+    <div class="card" style="margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <span style="font-size:11px;color:var(--muted);">Revenue Growth Scenario:</span>
+        ${[5,10,15,20].map(g=>`
+          <button id="fcastBtn${g}" onclick="updateForecast(${g})"
+            style="font-size:11px;padding:4px 12px;border-radius:6px;cursor:pointer;border:1px solid var(--border);
+            background:${g===5?'var(--cyan)':'transparent'};color:${g===5?'#000':'var(--muted)'};">
+            +${g}%
+          </button>`).join('')}
+        <span style="font-size:10px;color:var(--dim);margin-left:8px;">Cost assumed: +7% (ค่าเช่า+เงินเดือน)</span>
+      </div>
+      <div id="plForecastBody" style="overflow-x:auto;"></div>
+    </div>
+  </div>
+
+  <!-- P&L DETAIL MODAL -->
+  <div id="plModal" style="display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,0.78);
+    align-items:center;justify-content:center;" onclick="if(event.target===this)closePlModal()">
+    <div style="background:#161616;border:1px solid #2a2a2a;border-radius:14px;padding:24px;
+      width:min(860px,96vw);max-height:92vh;overflow-y:auto;position:relative;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div>
+          <div style="font-size:15px;font-weight:700;" id="plModalTitle">P&L Detail</div>
+          <div style="font-size:11px;color:var(--muted);">Revenue · GP · Labor · Rent · EBIT รายเดือน</div>
+        </div>
+        <button onclick="closePlModal()" style="background:none;border:1px solid #333;color:#888;
+          padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;">✕ ปิด</button>
+      </div>
+      <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(0,188,212,0.08);
+        border:1px solid rgba(0,188,212,0.2);border-radius:6px;padding:3px 10px;font-size:10px;
+        color:#80DEEA;margin-bottom:14px;">
+        📊 MoM% = เปรียบเทียบเดือนล่าสุดกับเดือนก่อนหน้า
+      </div>
+      <div id="plModalBody"></div>
+    </div>
+  </div>`;
+
+  // Render initial expense chart & forecast
+  setTimeout(()=>{
+    updatePLExpenseView('rent');
+    updateForecast(5);
+  },50);
+}
+
+// ── P&L Expense Chart ──
+let _plExpChart = null;
+function updatePLExpenseView(type){
+  const branches = getAccessibleBranches();
+  const labels = branches.map(b=>b.name.split('-').slice(-1)[0]||b.name).slice(0,12);
+  const bData = branches.slice(0,12);
+
+  function getVal(b, yr, key){
+    const p = yr===2025 ? b.pl_25 : b.pl_26;
+    const labor = p.fixed+p.variable;
+    if(key==='rent')  return Math.round(p.expenses*0.38); // ~38% of expenses = rent
+    if(key==='da')    return Math.round(p.expenses*0.12);
+    if(key==='labor') return labor;
+    if(key==='other') return Math.round(p.expenses*0.50);
+    return p.expenses;
+  }
+
+  const d25 = bData.map(b=>getVal(b,2025,type));
+  const d26 = bData.map(b=>getVal(b,2026,type));
+  const ctx  = document.getElementById('plExpenseChart');
+  if(!ctx) return;
+  if(_plExpChart){ _plExpChart.destroy(); _plExpChart=null; }
+  _plExpChart = new Chart(ctx,{type:'bar',data:{
+    labels,
+    datasets:[
+      {label:'YTD 2025',data:d25,backgroundColor:'rgba(120,120,120,0.45)',borderWidth:0},
+      {label:'YTD 2026',data:d26,backgroundColor:'rgba(255,167,38,0.85)',borderWidth:0},
+    ]},options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#aaa',font:{size:10}}},
+        tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': ฿'+ctx.raw.toLocaleString()}}},
+      scales:{x:{ticks:{color:'#888',font:{size:9},maxRotation:45},grid:{color:'#1c1c1c'}},
+              y:{ticks:{color:'#888',font:{size:9},callback:v=>fmtK(v)},grid:{color:'#1c1c1c'}}}}});
+
+  // Table
+  const tbody = document.getElementById('plExpTableBody');
+  if(!tbody) return;
+  tbody.innerHTML = bData.map(b=>{
+    const v25=getVal(b,2025,type), v26=getVal(b,2026,type);
+    const yoy = v25>0 ? ((v26-v25)/v25*100).toFixed(1) : '—';
+    const pctRev = b.pl_26.rev>0 ? (v26/b.pl_26.rev*100).toFixed(1) : '—';
+    const warn = parseFloat(pctRev)>10;
+    return `<tr>
+      <td style="padding:4px 8px;font-size:10px;color:var(--muted);">${b.name.split('-').slice(-2).join('-')}</td>
+      <td style="padding:4px 8px;text-align:right;color:var(--dim);font-size:10px;">฿${fmtK(v25)}</td>
+      <td style="padding:4px 8px;text-align:right;font-size:10px;">฿${fmtK(v26)}</td>
+      <td style="padding:4px 8px;text-align:right;font-size:10px;color:${parseFloat(yoy)>5?'#EF9A9A':'#81C784'};">▲${yoy}%</td>
+      <td style="padding:4px 8px;text-align:right;font-size:10px;color:${warn?'#EF5350':'var(--muted)'};">${warn?'⚠️ ':''} ${pctRev}%</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── P&L Forecast ──
+function updateForecast(growth){
+  document.querySelectorAll('[id^="fcastBtn"]').forEach(b=>{
+    const g=parseInt(b.id.replace('fcastBtn',''));
+    b.style.background=g===growth?'var(--cyan)':'transparent';
+    b.style.color=g===growth?'#000':'var(--muted)';
+  });
+  const branches = getAccessibleBranches();
+  const costGrowth = 0.07;
+  const sorted = [...branches].sort((a,b)=>{
+    const ea=a.pl_26.ebit*(1+growth/100)-a.pl_26.expenses*costGrowth;
+    const eb=b.pl_26.ebit*(1+growth/100)-b.pl_26.expenses*costGrowth;
+    return eb-ea;
+  });
+  const body = document.getElementById('plForecastBody');
+  if(!body) return;
+  const maxAbs = Math.max(...sorted.map(b=>Math.abs(b.pl_26.ebit)),1);
+  body.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:11px;">
+    <thead><tr style="border-bottom:1px solid var(--border);">
+      <th style="text-align:left;padding:5px 8px;color:var(--muted);">Branch</th>
+      <th style="text-align:left;padding:5px 8px;width:45%;">Projected EBIT (ประมาณการรายปี)</th>
+      <th style="text-align:right;padding:5px 8px;color:var(--muted);">Projected</th>
+      <th style="text-align:right;padding:5px 8px;color:var(--muted);">Status</th>
+    </tr></thead>
+    <tbody>
+    ${sorted.map(b=>{
+      const proj = Math.round(b.pl_26.ebit*(1+growth/100)*12/3 - b.pl_26.expenses*costGrowth*12/3);
+      const isP=proj>=0;
+      const c=isP?'#4CAF50':'#E53935';
+      const pct=Math.min(Math.abs(proj)/maxAbs/4*100,100);
+      return `<tr>
+        <td style="padding:4px 8px;color:var(--muted);white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;"
+            title="${b.name}">${b.name.split('-').slice(-2).join('-')}</td>
+        <td style="padding:4px 8px;">
+          <div style="background:rgba(255,255,255,0.05);border-radius:3px;height:12px;overflow:hidden;">
+            <div style="width:${pct.toFixed(0)}%;height:100%;background:${c};border-radius:3px;opacity:.85;"></div>
+          </div>
+        </td>
+        <td style="padding:4px 8px;text-align:right;font-weight:700;color:${isP?'#81C784':'#EF9A9A'};">${proj>=0?'+':''}฿${fmtK(proj)}/ปี</td>
+        <td style="padding:4px 8px;text-align:right;font-size:10px;">${isP?'<span style="color:#66BB6A;">✅ กำไร</span>':'<span style="color:#EF5350;">❌ ขาดทุน</span>'}</td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table>
+  <div style="margin-top:10px;font-size:10px;color:var(--dim);">
+    * คาดการณ์จาก YTD Q1 2026 × 4 (annualized) · Revenue Growth +${growth}% · Cost Growth +7%
+  </div>`;
+}
+
+// ── P&L Modal ──
+function showPlModal(branchId){
+  const branches = getAccessibleBranches();
+  const b = branches.find(x=>x.branch_id===branchId);
+  if(!b) return;
+  const p26=b.pl_26, p25=b.pl_25;
+  const D=[0.31,0.33,0.36];
+  const mLabels = (META.ytd_month_labels_th||[]).length ? META.ytd_month_labels_th : ['ม.ค.','ก.พ.','มี.ค.'];
+  const nM = mLabels.length;
+  const mRev26   = b.monthly_rev_26   || D.map(d=>Math.round(p26.rev*d));
+  const mGP26    = D.map(d=>Math.round(p26.gp*d));
+  const mFixed26 = D.map(d=>Math.round(p26.fixed*d));
+  const mVar26   = D.map(d=>Math.round(p26.variable*d));
+  const mRent26  = D.map(d=>Math.round((p26.expenses-p26.fixed-p26.variable)*0.45*d));
+  const mOther26 = D.map(d=>Math.round((p26.expenses-p26.fixed-p26.variable)*0.55*d));
+  const mEbit26  = b.monthly_ebit_26  || D.map(d=>Math.round(p26.ebit*d));
+
+  // MoM% for last 2 months
+  function mom(arr){ if(arr.length<2||!arr[arr.length-2]) return '—'; const d=((arr[arr.length-1]-arr[arr.length-2])/Math.abs(arr[arr.length-2])*100); return (d>=0?'▲':'▼')+Math.abs(d).toFixed(1)+'%'; }
+  function momColor(arr){ if(arr.length<2) return '#888'; return arr[arr.length-1]>=arr[arr.length-2]?'#81C784':'#EF9A9A'; }
+  function momColorInv(arr){ if(arr.length<2) return '#888'; return arr[arr.length-1]<=arr[arr.length-2]?'#81C784':'#EF9A9A'; } // cost: lower=good
+
+  const rows=[
+    {label:'Revenue',       arr:mRev26,   ytd:p26.rev,      inv:false, bold:true, color:'var(--text)'},
+    {label:'Gross Profit',  arr:mGP26,    ytd:p26.gp,       inv:false, bold:false, color:'#81C784'},
+    {label:'Personnel',     arr:mFixed26, ytd:p26.fixed,    inv:true,  bold:false, color:'#EF9A9A'},
+    {label:'Commission',    arr:mVar26,   ytd:p26.variable, inv:true,  bold:false, color:'#EF9A9A'},
+    {label:'Rental',        arr:mRent26,  ytd:Math.round((p26.expenses-p26.fixed-p26.variable)*0.45), inv:true, bold:false, color:'#FFA726'},
+    {label:'Other Exp.',    arr:mOther26, ytd:Math.round((p26.expenses-p26.fixed-p26.variable)*0.55), inv:true, bold:false, color:'var(--muted)'},
+    {label:'EBIT',          arr:mEbit26,  ytd:p26.ebit,     inv:false, bold:true, color: p26.ebit>=0?'#81C784':'#EF9A9A'},
+  ];
+
+  const lastMLabel = mLabels.length>=2 ? `${mLabels[mLabels.length-2]}→${mLabels[mLabels.length-1]}` : '';
+
+  const tableRows = rows.map(r=>{
+    const mc = r.arr.slice(0,nM).map(v=>`<td style="text-align:right;padding:5px 10px;color:${r.color};${r.bold?'font-weight:700;':''}">${v<0?'-':v>0?'':''  }฿${Math.abs(v)>1000?fmtK(Math.abs(v)):Math.abs(v)}</td>`).join('');
+    const pendCells = Array(Math.max(0,3-nM)).fill(0).map(()=>`<td style="text-align:right;color:var(--dim);">⏳</td>`).join('');
+    const mc2 = r.arr.length>=2 ? mom(r.arr) : '—';
+    const mc2c = r.inv ? momColorInv(r.arr) : momColor(r.arr);
+    return `<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+      <td style="padding:5px 10px;${r.bold?'font-weight:800;font-size:13px;':''}">${r.label}</td>
+      ${mc}${pendCells}
+      <td style="text-align:right;padding:5px 10px;font-weight:700;color:${mc2c};">${mc2}</td>
+      <td style="text-align:right;padding:5px 10px;font-weight:700;color:${r.color};">${r.ytd<0?'-':''}฿${fmtK(Math.abs(r.ytd))}</td>
+    </tr>`;
+  }).join('');
+
+  // Monthly EBIT 12-month cards
+  const allMonths=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  let ebitYtd=0,profitCnt=0,lossCnt=0,worstM='—',worstV=0;
+  const ebitCards = allMonths.map((m,i)=>{
+    if(i>=mEbit26.length){
+      return `<div style="background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:6px;
+        padding:8px 6px;text-align:center;min-width:66px;flex:1;">
+        <div style="font-size:9px;color:var(--dim);">${m}</div>
+        <div style="font-size:14px;margin:2px 0;">⏳</div>
+        <div style="font-size:8px;color:var(--dim);">ยังไม่ปิด</div>
+      </div>`;
+    }
+    const v=mEbit26[i]; ebitYtd+=v;
+    if(v>=0)profitCnt++;else lossCnt++;
+    if(v<worstV){worstV=v;worstM=m;}
+    const c=v>=0?'#66BB6A':'#EF5350';
+    const bg=v>=0?'rgba(76,175,80,0.07)':'rgba(239,83,80,0.14)';
+    const bdr=v>=0?'rgba(76,175,80,0.25)':'rgba(239,83,80,0.35)';
+    return `<div style="background:${bg};border:1px solid ${bdr};border-radius:6px;
+      padding:8px 6px;text-align:center;min-width:66px;flex:1;">
+      <div style="font-size:9px;color:var(--muted);">${m}</div>
+      <div style="font-size:13px;font-weight:700;color:${c};margin:2px 0;">${v>=0?'+':''}${fmtK(v)}</div>
+      <div style="font-size:8px;color:${c};">${v>=0?'กำไร':'ขาดทุน'}</div>
+    </div>`;
+  }).join('');
+
+  const ytdColor=ebitYtd>=0?'#66BB6A':'#EF5350';
+  const brName = b.name.split('-').slice(1).join('-')||b.name;
+
+  document.getElementById('plModalTitle').textContent=`P&L Detail — ${b.branch_id}: ${brName}`;
+  document.getElementById('plModalBody').innerHTML=`
+    <div style="overflow-x:auto;margin-bottom:18px;">
+      <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:580px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:6px 10px;color:var(--muted);">P&L Item</th>
+            ${mLabels.map(m=>`<th style="text-align:right;padding:6px 10px;color:#A5D6A7;">${m}</th>`).join('')}
+            ${Array(Math.max(0,3-nM)).fill(0).map(()=>`<th style="text-align:right;padding:6px 10px;color:#FFD700;">⏳</th>`).join('')}
+            <th style="text-align:right;padding:6px 10px;color:#64B5F6;">MoM% ${lastMLabel}</th>
+            <th style="text-align:right;padding:6px 10px;color:#FFD700;">YTD</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+
+    <!-- Monthly EBIT 12-month -->
+    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
+      letter-spacing:.5px;margin-bottom:8px;padding-top:4px;border-top:1px solid var(--border);">
+      📊 Monthly EBIT — ปี 2026 (กำไร / ขาดทุน ต่อเดือน)
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;">${ebitCards}</div>
+    <div style="font-size:10px;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap;
+      border-top:1px solid var(--border);padding-top:8px;">
+      <span>กำไร: <b style="color:#66BB6A;">${profitCnt} เดือน</b></span>
+      <span>ขาดทุน: <b style="color:#EF5350;">${lossCnt} เดือน</b></span>
+      <span>EBIT YTD: <b style="color:${ytdColor};">${ebitYtd>=0?'+':''}${fmtK(ebitYtd)}</b></span>
+      ${worstM!=='—'?`<span>เดือนแย่สุด: <b style="color:#EF5350;">${worstM} (${fmtK(worstV)})</b></span>`:''}
+    </div>
+    <div style="font-size:10px;color:var(--dim);margin-top:8px;">
+      * ข้อมูล Monthly ประมาณการจาก YTD Q1 2026 · version จริงดึงจาก Google Sheets PL_DATA
+    </div>`;
+
+  document.getElementById('plModal').style.display='flex';
+  document.body.style.overflow='hidden';
+}
+
+function closePlModal(){
+  document.getElementById('plModal').style.display='none';
+  document.body.style.overflow='';
 }
 </script>
 </body>
