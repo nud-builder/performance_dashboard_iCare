@@ -965,7 +965,12 @@ function renderOverview(){
   const gIcons={'iCare Standalone':'🏪','iCare with APP':'🔗','APP with iCare':'🔵','APP Standalone':'🔷'};
 
   let green=0,yellow=0,red=0;
-  branches.forEach(b=>{ const a=b.ytd_rev_26/(b.be_weekly*8)*100; if(a>=100)green++;else if(a>=70)yellow++;else red++; });
+  const _ytdWk = Math.round(((META.ytd_month_labels_th||[]).length||2)*4.33);
+  branches.forEach(b=>{
+    if(!b.be_weekly){ red++; return; } // ยังไม่ได้ตั้ง BE target
+    const a=b.ytd_rev_26/(b.be_weekly*_ytdWk)*100;
+    if(a>=100)green++;else if(a>=70)yellow++;else red++;
+  });
 
   const revToggleHtml = canToggle ? `<div class="chartToggle">
     <button class="toggleBtn ${ovChartMode.rev==='bar'?'active':''}" onclick="switchOvChart('rev','bar',event)">Top 15</button>
@@ -1226,7 +1231,7 @@ function renderOverview(){
         </div>
         <div class="groupBranchList" id="gbl-${gt.replace(/ /g,'_')}">
           <div style="font-size:10px;color:var(--muted);margin-bottom:8px;">สาขาในกลุ่ม (คลิกเพื่อดู Branch Detail)</div>
-          ${g.branches.map(b=>`<span class="branchPill" onclick="event.stopPropagation();drillDown(${b.branch_id})"><span class="tl ${tlClass(b.ytd_rev_26/(b.be_weekly*8)*100)}"></span>${b.branch_id}: ${b.name.split('-').slice(-1)[0]||b.name}</span>`).join('')}
+          ${g.branches.map(b=>`<span class="branchPill" onclick="event.stopPropagation();drillDown(${b.branch_id})"><span class="tl ${b.be_weekly?tlClass(b.ytd_rev_26/(b.be_weekly*_ytdWk)*100):'tl-r'}"></span>${b.branch_id}: ${b.name.split('-').slice(-1)[0]||b.name}</span>`).join('')}
         </div>
       </div>`;
     }).join('')}
@@ -1256,11 +1261,11 @@ function renderOverview(){
         </tr></thead>
         <tbody id="branchTableBody">
         ${branches.sort((a,b)=>b.ytd_rev_26-a.ytd_rev_26).map(b=>{
-          const att=b.ytd_rev_26/(b.be_weekly*8)*100;
+          const att=b.be_weekly?b.ytd_rev_26/(b.be_weekly*_ytdWk)*100:0;
           const rd=delta(b.ytd_rev_26,b.ytd_rev_25), gd=delta(b.ytd_gsx_26,b.ytd_gsx_25);
           const gp=b.ytd_profit_26/b.ytd_rev_26*100;
           return `<tr data-group="${b.group_type}" data-name="${b.name} ${b.branch_id}">
-            <td title="BE Attainment = YTD Rev ÷ (BE Weekly × 8 สัปดาห์)"><span class="tl ${tlClass(att)}"></span><span style="font-family:monospace;font-size:11px;">${att.toFixed(0)}%</span></td>
+            <td title="BE Attainment = YTD Rev ÷ (BE Weekly × ${_ytdWk} สัปดาห์)"><span class="tl ${b.be_weekly?tlClass(att):'tl-r'}"></span><span style="font-family:monospace;font-size:11px;">${att.toFixed(0)}%</span></td>
             <td><span class="badge ${b.type==='iCare'?'badge-icare':'badge-app'}">${b.branch_id}</span></td>
             <td style="font-size:11px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${b.name}">${b.name.split('-').slice(-2).join('-')}</td>
             <td style="font-size:10px;color:var(--muted);">${b.group_type}</td>
@@ -1458,8 +1463,11 @@ function renderDetail(bid){
 
   const showPL = currentUser && currentUser.showPL;
   const rd=delta(b.ytd_rev_26,b.ytd_rev_25), gd=delta(b.ytd_gsx_26,b.ytd_gsx_25), pd=delta(b.ytd_profit_26,b.ytd_profit_25);
-  const beTotal=b.be_weekly*8, revAtt=(b.ytd_rev_26/beTotal*100).toFixed(1);
-  const gsxBETotal=b.gsx_breakeven*8, gsxAtt=(b.ytd_gsx_26/gsxBETotal*100).toFixed(1);
+  const ytdWk = Math.round(((META.ytd_month_labels_th||[]).length||2)*4.33);
+  const beTotal    = b.be_weekly    * ytdWk;
+  const gsxBETotal = b.gsx_breakeven * ytdWk;
+  const revAtt = beTotal    ? (b.ytd_rev_26/beTotal*100).toFixed(1)    : '—';
+  const gsxAtt = gsxBETotal ? (b.ytd_gsx_26/gsxBETotal*100).toFixed(1) : '—';
   const p26=b.pl_26, p25=b.pl_25;
   const labor26=p26.fixed+p26.variable, labor25=p25.fixed+p25.variable;
 
@@ -1905,7 +1913,8 @@ function renderAM(){
       </div>
       <table><thead><tr><th>BE%</th><th>Branch</th><th>Name</th><th>Type</th><th class="tNum">Rev '25</th><th class="tNum">Rev '26</th><th class="tNum">Δ%</th><th class="tNum">GSX '25</th><th class="tNum">GSX '26</th><th class="tNum">Δ%</th><th></th></tr></thead>
       <tbody>${am.branches.sort((a,z)=>z.ytd_rev_26-a.ytd_rev_26).map(b=>{
-        const att=b.ytd_rev_26/(b.be_weekly*8)*100, rd=delta(b.ytd_rev_26,b.ytd_rev_25), gd=delta(b.ytd_gsx_26,b.ytd_gsx_25);
+        const _amWk=Math.round(((META.ytd_month_labels_th||[]).length||2)*4.33);
+        const att=b.be_weekly?b.ytd_rev_26/(b.be_weekly*_amWk)*100:0, rd=delta(b.ytd_rev_26,b.ytd_rev_25), gd=delta(b.ytd_gsx_26,b.ytd_gsx_25);
         return`<tr><td><span class="tl ${tlClass(att)}"></span>${att.toFixed(0)}%</td><td><b>${b.branch_id}</b></td><td style="font-size:11px;">${b.name.split('-').slice(-2).join('-')}</td><td><span class="badge ${b.type==='iCare'?'badge-icare':'badge-app'}">${b.type}</span></td><td class="tNum" style="color:var(--dim);">${fmtK(b.ytd_rev_25)}</td><td class="tNum">${fmtK(b.ytd_rev_26)}</td><td class="tNum" style="${colStyle(rd)}">${rd}</td><td class="tNum" style="color:var(--dim);">${b.ytd_gsx_25}</td><td class="tNum">${b.ytd_gsx_26}</td><td class="tNum" style="${colStyle(gd)}">${gd}</td><td><button onclick="drillDown(${b.branch_id})" style="background:none;border:1px solid var(--border);color:var(--muted);padding:3px 8px;border-radius:4px;cursor:pointer;font-size:10px;">Detail›</button></td></tr>`;
       }).join('')}</tbody></table>
     </div>`).join('')}`;
