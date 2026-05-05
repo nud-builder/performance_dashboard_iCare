@@ -476,11 +476,24 @@ function injectMonthlyEstimates(branches){
         b.monthly_cat_gsx_26[cat]=D.map(d=>Math.round((b.cat_gsx_26[cat]||0)*d));
       });
     }
-    // monthly_ebit_26
-    if(!b.monthly_ebit_26){
+    // monthly_pl_26 — สร้างถ้ายังไม่มี (MOCK หรือ live เก่าที่ยังไม่ส่งมา)
+    if(!b.monthly_pl_26){
+      const p26 = b.pl_26 || {};
       const E=[0.87,0.54,-0.41].slice(0,nM);
-      b.monthly_ebit_26=E.map(e=>Math.round((b.pl_26&&b.pl_26.ebit||0)*e));
+      b.monthly_pl_26 = D.map((d,i)=>({
+        rev:      Math.round((p26.rev      ||0)*d),
+        gp:       Math.round((p26.gp       ||0)*d),
+        fixed:    Math.round((p26.fixed    ||0)*d),
+        variable: Math.round((p26.variable ||0)*d),
+        rental:   Math.round((p26.rental   ||0)*d),
+        da:       Math.round((p26.da       ||0)*d),
+        expenses: Math.round((p26.expenses ||0)*d),
+        // EBIT: ใช้ E-distribution เพื่อให้เห็น variance ต่างเดือน (MOCK เท่านั้น)
+        ebit:     Math.round((p26.ebit     ||0)*E[i]),
+      }));
     }
+    // monthly_ebit_26 — sync จาก monthly_pl_26
+    if(!b.monthly_ebit_26) b.monthly_ebit_26 = b.monthly_pl_26.map(m=>m.ebit);
     // monthly_rev_26 + monthly_gsx_26
     if(!b.monthly_rev_26) b.monthly_rev_26=D.map(d=>Math.round(b.ytd_rev_26*d));
     if(!b.monthly_gsx_26) b.monthly_gsx_26=D.map(d=>Math.round(b.ytd_gsx_26*d));
@@ -2324,21 +2337,6 @@ function renderPL(){
       </div>
     </div>
 
-    <!-- P&L Forecast -->
-    <div class="secSep"><span>🔮 P&L Forecast — คาดการณ์ผลประกอบการ 2026</span></div>
-    <div class="card" style="margin-bottom:20px;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-        <span style="font-size:11px;color:var(--muted);">Revenue Growth Scenario:</span>
-        ${[5,10,15,20].map(g=>`
-          <button id="fcastBtn${g}" onclick="updateForecast(${g})"
-            style="font-size:11px;padding:4px 12px;border-radius:6px;cursor:pointer;border:1px solid var(--border);
-            background:${g===5?'var(--cyan)':'transparent'};color:${g===5?'#000':'var(--muted)'};">
-            +${g}%
-          </button>`).join('')}
-        <span style="font-size:10px;color:var(--dim);margin-left:8px;">Cost assumed: +7% (ค่าเช่า+เงินเดือน)</span>
-      </div>
-      <div id="plForecastBody" style="overflow-x:auto;"></div>
-    </div>
   </div>
 
   <!-- P&L DETAIL MODAL -->
@@ -2363,11 +2361,8 @@ function renderPL(){
     </div>
   </div>`;
 
-  // Render initial expense chart & forecast
-  setTimeout(()=>{
-    updatePLExpenseView('rent');
-    updateForecast(5);
-  },50);
+  // Render initial expense chart
+  setTimeout(()=>{ updatePLExpenseView('rent'); },50);
 }
 
 // ── P&L Expense Chart ──
@@ -2379,12 +2374,17 @@ function updatePLExpenseView(type){
 
   function getVal(b, yr, key){
     const p = yr===2025 ? b.pl_25 : b.pl_26;
-    const labor = p.fixed+p.variable;
-    if(key==='rent')  return Math.round(p.expenses*0.38); // ~38% of expenses = rent
-    if(key==='da')    return Math.round(p.expenses*0.12);
+    if(!p) return 0;
+    const labor = (p.fixed||0)+(p.variable||0);
+    // ใช้ค่าจริงถ้ามี (Apps Script ส่งมา) ไม่มีใช้ estimate
+    const rental = p.rental != null ? p.rental : Math.round((p.expenses||0)*0.38);
+    const da     = p.da     != null ? p.da     : Math.round((p.expenses||0)*0.12);
+    const other  = Math.max(0,(p.expenses||0)-labor-rental-da);
+    if(key==='rent')  return rental;
+    if(key==='da')    return da;
     if(key==='labor') return labor;
-    if(key==='other') return Math.round(p.expenses*0.50);
-    return p.expenses;
+    if(key==='other') return other;
+    return p.expenses||0;
   }
 
   const d25 = bData.map(b=>getVal(b,2025,type));
@@ -2421,55 +2421,6 @@ function updatePLExpenseView(type){
   }).join('');
 }
 
-// ── P&L Forecast ──
-function updateForecast(growth){
-  document.querySelectorAll('[id^="fcastBtn"]').forEach(b=>{
-    const g=parseInt(b.id.replace('fcastBtn',''));
-    b.style.background=g===growth?'var(--cyan)':'transparent';
-    b.style.color=g===growth?'#000':'var(--muted)';
-  });
-  const branches = getAccessibleBranches();
-  const costGrowth = 0.07;
-  const sorted = [...branches].sort((a,b)=>{
-    const ea=a.pl_26.ebit*(1+growth/100)-a.pl_26.expenses*costGrowth;
-    const eb=b.pl_26.ebit*(1+growth/100)-b.pl_26.expenses*costGrowth;
-    return eb-ea;
-  });
-  const body = document.getElementById('plForecastBody');
-  if(!body) return;
-  const maxAbs = Math.max(...sorted.map(b=>Math.abs(b.pl_26.ebit)),1);
-  body.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:11px;">
-    <thead><tr style="border-bottom:1px solid var(--border);">
-      <th style="text-align:left;padding:5px 8px;color:var(--muted);">Branch</th>
-      <th style="text-align:left;padding:5px 8px;width:45%;">Projected EBIT (ประมาณการรายปี)</th>
-      <th style="text-align:right;padding:5px 8px;color:var(--muted);">Projected</th>
-      <th style="text-align:right;padding:5px 8px;color:var(--muted);">Status</th>
-    </tr></thead>
-    <tbody>
-    ${sorted.map(b=>{
-      const proj = Math.round(b.pl_26.ebit*(1+growth/100)*12/3 - b.pl_26.expenses*costGrowth*12/3);
-      const isP=proj>=0;
-      const c=isP?'#4CAF50':'#E53935';
-      const pct=Math.min(Math.abs(proj)/maxAbs/4*100,100);
-      return `<tr>
-        <td style="padding:4px 8px;color:var(--muted);white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;"
-            title="${b.name}">${b.name.split('-').slice(-2).join('-')}</td>
-        <td style="padding:4px 8px;">
-          <div style="background:rgba(255,255,255,0.05);border-radius:3px;height:12px;overflow:hidden;">
-            <div style="width:${pct.toFixed(0)}%;height:100%;background:${c};border-radius:3px;opacity:.85;"></div>
-          </div>
-        </td>
-        <td style="padding:4px 8px;text-align:right;font-weight:700;color:${isP?'#81C784':'#EF9A9A'};">${proj>=0?'+':''}฿${fmtK(proj)}/ปี</td>
-        <td style="padding:4px 8px;text-align:right;font-size:10px;">${isP?'<span style="color:#66BB6A;">✅ กำไร</span>':'<span style="color:#EF5350;">❌ ขาดทุน</span>'}</td>
-      </tr>`;
-    }).join('')}
-    </tbody>
-  </table>
-  <div style="margin-top:10px;font-size:10px;color:var(--dim);">
-    * คาดการณ์จาก YTD Q1 2026 × 4 (annualized) · Revenue Growth +${growth}% · Cost Growth +7%
-  </div>`;
-}
-
 // ── P&L Modal ──
 function showPlModal(branchId){
   const branches = getAccessibleBranches();
@@ -2480,39 +2431,41 @@ function showPlModal(branchId){
   const mLabels = (META.ytd_month_labels_th||[]).length ? META.ytd_month_labels_th : ['ม.ค.','ก.พ.','มี.ค.'];
   const nM = mLabels.length;
 
-  // ใช้ monthly_rev_26 จริงเป็น base (nM elements)
-  // จากนั้น scale P&L items อื่นด้วย revenue proportion → ทุก array มี nM elements ถูกต้อง
-  const mRev26raw = b.monthly_rev_26 || D.map(d=>Math.round(p26.rev*d));
+  // Revenue array (nM elements)
+  const mRev26raw = b.monthly_rev_26 || D.slice(0,nM).map(d=>Math.round(p26.rev*d));
   const mRev26 = mRev26raw.slice(0, nM);
-  // pad ถ้า monthly_rev_26 มีน้อยกว่า nM
-  while(mRev26.length < nM) { const last=mRev26[mRev26.length-1]||0; mRev26.push(last); }
-  const revSum = mRev26.reduce((s,v)=>s+v,0) || p26.rev || 1;
-  const rp = mRev26.map(v=>v/revSum); // proportion per month (nM elements)
+  while(mRev26.length < nM){ const last=mRev26[mRev26.length-1]||0; mRev26.push(last); }
 
-  const rentBase = Math.max(0, p26.expenses - p26.fixed - p26.variable);
-  const mGP26    = rp.map(p=>Math.round(p26.gp*p));
-  const mFixed26 = rp.map(p=>Math.round(p26.fixed*p));
-  const mVar26   = rp.map(p=>Math.round(p26.variable*p));
-  const mRent26  = rp.map(p=>Math.round(rentBase*0.45*p));
-  const mOther26 = rp.map(p=>Math.round(rentBase*0.55*p));
-  // EBIT = GP - Fixed - Var - Rent - Other ต่อเดือน
-  const mEbit26raw = b.monthly_ebit_26 ? b.monthly_ebit_26.slice(0,nM) : rp.map(p=>Math.round(p26.ebit*p));
-  const mEbit26 = mEbit26raw;
-  while(mEbit26.length < nM) mEbit26.push(rp[mEbit26.length]?Math.round(p26.ebit*rp[mEbit26.length]):0);
+  // monthly_pl_26 มีเสมอ — inject โดย injectMonthlyEstimates() ถ้าไม่มีจาก Apps Script
+  const pl      = b.monthly_pl_26.slice(0, nM);
+  const mGP26   = pl.map(m=>m.gp);
+  const mFixed26= pl.map(m=>m.fixed);
+  const mVar26  = pl.map(m=>m.variable);
+  const mRent26 = pl.map(m=>m.rental);
+  const mDA26   = pl.map(m=>m.da);
+  // Other Exp. = Total Expenses − Personnel − Commission − Rental − D&A
+  const mOther26= pl.map(m=>Math.max(0, m.expenses - m.fixed - m.variable - m.rental - m.da));
+  const mEbit26 = pl.map(m=>m.ebit);
 
   // MoM% for last 2 months
   function mom(arr){ if(arr.length<2||!arr[arr.length-2]) return '—'; const d=((arr[arr.length-1]-arr[arr.length-2])/Math.abs(arr[arr.length-2])*100); return (d>=0?'▲':'▼')+Math.abs(d).toFixed(1)+'%'; }
   function momColor(arr){ if(arr.length<2) return '#888'; return arr[arr.length-1]>=arr[arr.length-2]?'#81C784':'#EF9A9A'; }
   function momColorInv(arr){ if(arr.length<2) return '#888'; return arr[arr.length-1]<=arr[arr.length-2]?'#81C784':'#EF9A9A'; } // cost: lower=good
 
+  // YTD สำหรับ Rental และ D&A — ใช้จาก pl_26 ถ้ามี ไม่มีคำนวณจาก monthly sum
+  const ytdRental = p26.rental != null ? p26.rental : mRent26.reduce((s,v)=>s+v,0);
+  const ytdDA     = p26.da     != null ? p26.da     : mDA26.reduce((s,v)=>s+v,0);
+  const ytdOther  = Math.max(0, (p26.expenses||0) - (p26.fixed||0) - (p26.variable||0) - ytdRental - ytdDA);
+
   const rows=[
-    {label:'Revenue',       arr:mRev26,   ytd:p26.rev,      inv:false, bold:true, color:'var(--text)'},
+    {label:'Revenue',       arr:mRev26,   ytd:p26.rev,      inv:false, bold:true,  color:'var(--text)'},
     {label:'Gross Profit',  arr:mGP26,    ytd:p26.gp,       inv:false, bold:false, color:'#81C784'},
     {label:'Personnel',     arr:mFixed26, ytd:p26.fixed,    inv:true,  bold:false, color:'#EF9A9A'},
     {label:'Commission',    arr:mVar26,   ytd:p26.variable, inv:true,  bold:false, color:'#EF9A9A'},
-    {label:'Rental',        arr:mRent26,  ytd:Math.round((p26.expenses-p26.fixed-p26.variable)*0.45), inv:true, bold:false, color:'#FFA726'},
-    {label:'Other Exp.',    arr:mOther26, ytd:Math.round((p26.expenses-p26.fixed-p26.variable)*0.55), inv:true, bold:false, color:'var(--muted)'},
-    {label:'EBIT',          arr:mEbit26,  ytd:p26.ebit,     inv:false, bold:true, color: p26.ebit>=0?'#81C784':'#EF9A9A'},
+    {label:'Rental',        arr:mRent26,  ytd:ytdRental,    inv:true,  bold:false, color:'#FFA726'},
+    {label:'D&A',           arr:mDA26,    ytd:ytdDA,        inv:true,  bold:false, color:'#CE93D8'},
+    {label:'Other Exp.',    arr:mOther26, ytd:ytdOther,     inv:true,  bold:false, color:'var(--muted)'},
+    {label:'EBIT',          arr:mEbit26,  ytd:p26.ebit,     inv:false, bold:true,  color: p26.ebit>=0?'#81C784':'#EF9A9A'},
   ];
 
   const lastMLabel = mLabels.length>=2 ? `${mLabels[mLabels.length-2]}→${mLabels[mLabels.length-1]}` : '';
@@ -2590,7 +2543,7 @@ function showPlModal(branchId){
       ${worstM!=='—'?`<span>เดือนแย่สุด: <b style="color:#EF5350;">${worstM} (${fmtK(worstV)})</b></span>`:''}
     </div>
     <div style="font-size:10px;color:var(--dim);margin-top:8px;">
-      * ข้อมูล Monthly ประมาณการจาก YTD Q1 2026 · version จริงดึงจาก Google Sheets PL_DATA
+      * Revenue · GP · Personnel · Commission · Rental · D&A · EBIT ดึงจาก Google Sheets PL_DATA (ข้อมูลจริงรายเดือน) · Other Exp. คำนวณจาก Total Expenses − items ข้างต้น
     </div>`;
 
   document.getElementById('plModal').style.display='flex';
