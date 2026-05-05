@@ -2231,7 +2231,7 @@ function renderPL(){
     <div class="secSep"><span>🏆 Branch Ranking — เรียงตาม EBIT YTD</span></div>
     <div class="grid2" style="margin-bottom:20px;">
       <div class="card">
-        <div class="cardTitle" style="color:#66BB6A;">✅ กำไรมากสุด (Top ${profitable.length})</div>
+        <div class="cardTitle" style="color:#66BB6A;">✅ กำไรสะสมมากสุด (Top ${profitable.length})</div>
         <div style="margin-top:10px;">
           ${profitable.map((x,i)=>`
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11px;">
@@ -2247,7 +2247,7 @@ function renderPL(){
         </div>
       </div>
       <div class="card">
-        <div class="cardTitle" style="color:#EF5350;">❌ ขาดทุนมากสุด (Top ${loss.length})</div>
+        <div class="cardTitle" style="color:#EF5350;">❌ ขาดทุนสะสมมากสุด (Top ${loss.length})</div>
         <div style="margin-top:10px;">
           ${loss.map((x,i)=>`
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11px;">
