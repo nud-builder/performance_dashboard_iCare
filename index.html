@@ -450,6 +450,43 @@ const MOCK_DATA = {"branches": [{"branch_id": 227, "name": "iCare-Paradise Park-
 let RAWDATA = MOCK_DATA;
 let BRANCHES, CO25, CO26, CO_MONTHLY, META, WEEK_LABELS, WEEK_SHORT;
 
+function injectMonthlyEstimates(branches){
+  // เพิ่ม monthly estimates สำหรับ branches ที่ยังไม่มี (ทั้ง MOCK และ LIVE data)
+  const mLabels = (RAWDATA.meta && RAWDATA.meta.ytd_month_labels_th) || ['ม.ค.','ก.พ.','มี.ค.'];
+  const nM = mLabels.length;
+  // build distribution จาก monthly_rev_26 ถ้ามี ไม่มีใช้ uniform
+  branches.forEach(b=>{
+    const mRev = b.monthly_rev_26 || [];
+    const revSum = mRev.reduce((s,v)=>s+v,0) || b.ytd_rev_26 || 1;
+    const D = mRev.length>=nM
+      ? mRev.slice(0,nM).map(v=>v/revSum)
+      : [0.31,0.33,0.36].slice(0,nM);
+
+    // monthly_cat_rev_26
+    if(!b.monthly_cat_rev_26){
+      b.monthly_cat_rev_26={};
+      Object.keys(b.cat_rev_26||{}).forEach(cat=>{
+        b.monthly_cat_rev_26[cat]=D.map(d=>Math.round((b.cat_rev_26[cat]||0)*d));
+      });
+    }
+    // monthly_cat_gsx_26
+    if(!b.monthly_cat_gsx_26){
+      b.monthly_cat_gsx_26={};
+      Object.keys(b.cat_gsx_26||{}).forEach(cat=>{
+        b.monthly_cat_gsx_26[cat]=D.map(d=>Math.round((b.cat_gsx_26[cat]||0)*d));
+      });
+    }
+    // monthly_ebit_26
+    if(!b.monthly_ebit_26){
+      const E=[0.87,0.54,-0.41].slice(0,nM);
+      b.monthly_ebit_26=E.map(e=>Math.round((b.pl_26&&b.pl_26.ebit||0)*e));
+    }
+    // monthly_rev_26 + monthly_gsx_26
+    if(!b.monthly_rev_26) b.monthly_rev_26=D.map(d=>Math.round(b.ytd_rev_26*d));
+    if(!b.monthly_gsx_26) b.monthly_gsx_26=D.map(d=>Math.round(b.ytd_gsx_26*d));
+  });
+}
+
 function initGlobals(){
   BRANCHES    = RAWDATA.branches;
   CO25        = RAWDATA.company_ytd_25;
@@ -458,6 +495,8 @@ function initGlobals(){
   META        = RAWDATA.meta;
   WEEK_LABELS = RAWDATA.week_labels_full;
   WEEK_SHORT  = RAWDATA.week_labels_short;
+  // inject monthly estimates ทุกครั้งที่ set data ใหม่
+  if(BRANCHES) injectMonthlyEstimates(BRANCHES);
 }
 initGlobals(); // init with mock first
 
@@ -1819,7 +1858,6 @@ function renderAM(){
         </tr>`;
       }).join('');
       return `
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">${cards}</div>
       <div class="card" style="margin-bottom:20px;">
         <div class="cardTitle">📋 Category Owner Performance Summary — YTD ${META.ytd_label}</div>
         <table>
@@ -2060,7 +2098,7 @@ GP% = Gross Profit ÷ Revenue × 100
 }
 
 // ===== P&L TAB =====
-let plFilterType = 'all'; // 'all' | 'iCare' | 'APP'
+let plFilterType = 'all'; // 'all' | 'iCare' | 'iCare APP'
 let plSortMode = 'ebit';  // 'ebit' | 'profit' | 'loss' | 'name'
 let plModalBranch = null;
 
@@ -2094,7 +2132,7 @@ function renderPL(){
 
   // Filter + sort for main table
   const filtered = allData
-    .filter(x=> plFilterType==='all' || x.b.type===plFilterType)
+    .filter(x=> plFilterType==='all' || x.b.type===plFilterType || (plFilterType==='iCare APP' && x.b.type==='iCare APP'))
     .sort((a,b)=> plSortMode==='name' ? a.b.name.localeCompare(b.b.name) : b.p26.ebit-a.p26.ebit);
 
   // Summary KPIs
@@ -2128,7 +2166,7 @@ function renderPL(){
       <td>${typeBadge}</td>
       ${monthCells}${pendCells}
       ${ebitCell(p26.ebit)}
-      <td style="text-align:right;font-size:10px;color:var(--muted);">${totRev26>0?(p26.ebit/p26.rev*100).toFixed(1)+'%':'—'}</td>
+      <td style="text-align:right;font-size:10px;color:${p26.rev>0&&(p26.ebit/p26.rev*100)<0?'#EF9A9A':'var(--muted)'};">${p26.rev>0?(p26.ebit/p26.rev*100).toFixed(1)+'%':'—'}</td>
     </tr>`;
   }).join('');
 
@@ -2218,11 +2256,11 @@ function renderPL(){
     <div class="card" style="margin-bottom:20px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
         <span style="font-size:11px;color:var(--muted);">Filter:</span>
-        ${['all','iCare','APP'].map(t=>`
-          <button onclick="plFilterType='${t}';renderPL();"
+        ${[['all','ทั้งหมด'],['iCare','iCare'],['iCare APP','iCare APP']].map(([v,l])=>`
+          <button onclick="plFilterType='${v}';renderPL();"
             style="font-size:11px;padding:4px 12px;border-radius:6px;cursor:pointer;border:1px solid var(--border);
-            background:${plFilterType===t?'var(--cyan)':'transparent'};color:${plFilterType===t?'#000':'var(--muted)'};">
-            ${t==='all'?'ทั้งหมด':t}
+            background:${plFilterType===v?'var(--cyan)':'transparent'};color:${plFilterType===v?'#000':'var(--muted)'};">
+            ${l}
           </button>`).join('')}
         <span style="font-size:11px;color:var(--muted);margin-left:12px;">เรียง:</span>
         ${[['ebit','EBIT YTD'],['name','ชื่อสาขา']].map(([v,l])=>`
@@ -2269,9 +2307,9 @@ function renderPL(){
       </div>
       <div class="grid2">
         <div class="chartWrap"><canvas id="plExpenseChart"></canvas></div>
-        <div style="overflow-x:auto;">
+        <div style="max-height:340px;overflow-y:auto;overflow-x:auto;border:1px solid var(--border);border-radius:6px;">
           <table style="width:100%;border-collapse:collapse;font-size:11px;" id="plExpenseTable">
-            <thead>
+            <thead style="position:sticky;top:0;background:#1a1a1a;z-index:2;">
               <tr style="border-bottom:1px solid var(--border);">
                 <th style="text-align:left;padding:5px 8px;color:var(--muted);">Branch</th>
                 <th style="text-align:right;padding:5px 8px;color:var(--muted);">YTD 2025</th>
@@ -2336,8 +2374,8 @@ function renderPL(){
 let _plExpChart = null;
 function updatePLExpenseView(type){
   const branches = getAccessibleBranches();
-  const labels = branches.map(b=>b.name.split('-').slice(-1)[0]||b.name).slice(0,12);
-  const bData = branches.slice(0,12);
+  const labels = branches.map(b=>b.name.split('-').slice(-1)[0]||b.name);
+  const bData = branches;
 
   function getVal(b, yr, key){
     const p = yr===2025 ? b.pl_25 : b.pl_26;
@@ -2441,13 +2479,26 @@ function showPlModal(branchId){
   const D=[0.31,0.33,0.36];
   const mLabels = (META.ytd_month_labels_th||[]).length ? META.ytd_month_labels_th : ['ม.ค.','ก.พ.','มี.ค.'];
   const nM = mLabels.length;
-  const mRev26   = b.monthly_rev_26   || D.map(d=>Math.round(p26.rev*d));
-  const mGP26    = D.map(d=>Math.round(p26.gp*d));
-  const mFixed26 = D.map(d=>Math.round(p26.fixed*d));
-  const mVar26   = D.map(d=>Math.round(p26.variable*d));
-  const mRent26  = D.map(d=>Math.round((p26.expenses-p26.fixed-p26.variable)*0.45*d));
-  const mOther26 = D.map(d=>Math.round((p26.expenses-p26.fixed-p26.variable)*0.55*d));
-  const mEbit26  = b.monthly_ebit_26  || D.map(d=>Math.round(p26.ebit*d));
+
+  // ใช้ monthly_rev_26 จริงเป็น base (nM elements)
+  // จากนั้น scale P&L items อื่นด้วย revenue proportion → ทุก array มี nM elements ถูกต้อง
+  const mRev26raw = b.monthly_rev_26 || D.map(d=>Math.round(p26.rev*d));
+  const mRev26 = mRev26raw.slice(0, nM);
+  // pad ถ้า monthly_rev_26 มีน้อยกว่า nM
+  while(mRev26.length < nM) { const last=mRev26[mRev26.length-1]||0; mRev26.push(last); }
+  const revSum = mRev26.reduce((s,v)=>s+v,0) || p26.rev || 1;
+  const rp = mRev26.map(v=>v/revSum); // proportion per month (nM elements)
+
+  const rentBase = Math.max(0, p26.expenses - p26.fixed - p26.variable);
+  const mGP26    = rp.map(p=>Math.round(p26.gp*p));
+  const mFixed26 = rp.map(p=>Math.round(p26.fixed*p));
+  const mVar26   = rp.map(p=>Math.round(p26.variable*p));
+  const mRent26  = rp.map(p=>Math.round(rentBase*0.45*p));
+  const mOther26 = rp.map(p=>Math.round(rentBase*0.55*p));
+  // EBIT = GP - Fixed - Var - Rent - Other ต่อเดือน
+  const mEbit26raw = b.monthly_ebit_26 ? b.monthly_ebit_26.slice(0,nM) : rp.map(p=>Math.round(p26.ebit*p));
+  const mEbit26 = mEbit26raw;
+  while(mEbit26.length < nM) mEbit26.push(rp[mEbit26.length]?Math.round(p26.ebit*rp[mEbit26.length]):0);
 
   // MoM% for last 2 months
   function mom(arr){ if(arr.length<2||!arr[arr.length-2]) return '—'; const d=((arr[arr.length-1]-arr[arr.length-2])/Math.abs(arr[arr.length-2])*100); return (d>=0?'▲':'▼')+Math.abs(d).toFixed(1)+'%'; }
