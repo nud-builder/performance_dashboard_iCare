@@ -1737,6 +1737,12 @@ function showCatDetail(type, catKey, b){
   const catMthEst = isRev
     ? (b.monthly_cat_rev_26 && b.monthly_cat_rev_26[catKey] ? b.monthly_cat_rev_26[catKey] : [])
     : (b.monthly_cat_gsx_26 && b.monthly_cat_gsx_26[catKey] ? b.monthly_cat_gsx_26[catKey] : []);
+  // DEBUG — ดูใน Console แล้วส่งผลให้ทีม
+  console.log('[CatModal Debug]', catKey, isRev?'REV':'GSX',
+    '| mLabels:', mLabels.length, mLabels,
+    '| catMthEst:', catMthEst.length, catMthEst,
+    '| has monthly_cat_rev_26:', !!(b.monthly_cat_rev_26),
+    '| has monthly_cat_gsx_26:', !!(b.monthly_cat_gsx_26));
   titleEl.textContent = `📦 ${catKey} — ${isRev?'Revenue':'GSX Jobs'} Detail · ${b.name.split('-').slice(-1)[0]}`;
   bodyEl.innerHTML = `
     <div class="grid3" style="gap:12px;margin-bottom:18px;">
