@@ -2367,21 +2367,18 @@ function showPlModal(branchId){
   const mLabels = (META.ytd_month_labels_th||[]).length ? META.ytd_month_labels_th : ['ม.ค.','ก.พ.','มี.ค.'];
   const nM = mLabels.length;
 
-  // Revenue array (nM elements)
-  const mRev26raw = b.monthly_rev_26 || D.slice(0,nM).map(d=>Math.round(p26.rev*d));
-  const mRev26 = mRev26raw.slice(0, nM);
-  while(mRev26.length < nM){ const last=mRev26[mRev26.length-1]||0; mRev26.push(last); }
-
   // monthly_pl_26 มีเสมอ — inject โดย injectMonthlyEstimates() ถ้าไม่มีจาก Apps Script
   const pl      = b.monthly_pl_26.slice(0, nM);
-  const mGP26   = pl.map(m=>m.gp);
-  const mFixed26= pl.map(m=>m.fixed);
-  const mVar26  = pl.map(m=>m.variable);
-  const mRent26 = pl.map(m=>m.rental);
-  const mDA26   = pl.map(m=>m.da);
-  // Other Exp. = Total Expenses − Personnel − Commission − Rental − D&A
-  const mOther26= pl.map(m=>Math.max(0, m.expenses - m.fixed - m.variable - m.rental - m.da));
-  const mEbit26 = pl.map(m=>m.ebit);
+  // Revenue ดึงจาก PL_DATA เท่านั้น (ไม่ใช้ Revenue sheet เพื่อให้ April ที่ยังไม่มี P&L แสดง ฿0)
+  const mRev26  = pl.map(m => m.rev  || 0);
+  const mGP26   = pl.map(m => m.gp   || 0);
+  const mFixed26= pl.map(m => m.fixed || 0);
+  const mVar26  = pl.map(m => m.variable || 0);
+  const mRent26 = pl.map(m => m.rental || 0);
+  const mDA26   = pl.map(m => m.da   || 0);
+  // Other Exp. = Total Expenses − Personnel − Commission − Rental − D&A (ใช้ safe values เพื่อกัน NaN)
+  const mOther26= pl.map((m,i)=>Math.max(0, (m.expenses||0) - mFixed26[i] - mVar26[i] - mRent26[i] - mDA26[i]));
+  const mEbit26 = pl.map(m => m.ebit || 0);
 
   // MoM% for last 2 months
   function mom(arr){ if(arr.length<2||!arr[arr.length-2]) return '—'; const d=((arr[arr.length-1]-arr[arr.length-2])/Math.abs(arr[arr.length-2])*100); return (d>=0?'▲':'▼')+Math.abs(d).toFixed(1)+'%'; }
