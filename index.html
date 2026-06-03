@@ -1943,14 +1943,14 @@ BE Weekly  = BE Monthly ÷ 4.33 สัปดาห์ต่อเดือน
       <div class="grid2">
         <table>
           <tr><th>Code</th><th>ความหมาย</th></tr>
-          <tr><td><b>AC+</b></td><td>AppleCare+ (Service Plan)</td></tr>
+          <tr><td><b>AC+</b></td><td>AppleCare+</td></tr>
           <tr><td><b>ACC</b></td><td>Accessories & อุปกรณ์เสริม</td></tr>
-          <tr><td><b>CPU</b></td><td>Mac (Hardware ราคาสูง)</td></tr>
-          <tr><td><b>Exchange</b></td><td>รับเปลี่ยนเครื่อง</td></tr>
+          <tr><td><b>CPU</b></td><td>Mac (Hardware)</td></tr>
+          <tr><td><b>Exchange</b></td><td>แลกเปลี่ยนเครื่อง</td></tr>
           <tr><td><b>Film</b></td><td>ฟิล์มกระจก / ฟิล์มหลัง</td></tr>
           <tr><td><b>iPhoneBat</b></td><td>iPhone Battery Replacement</td></tr>
           <tr><td><b>iPhoneDisp</b></td><td>iPhone Display Repair</td></tr>
-          <tr><td><b>ServiceBill</b></td><td>ค่าบริการซ่อม (งานอื่นๆ)</td></tr>
+          <tr><td><b>ServiceBill</b></td><td>ค่าบริการ</td></tr>
         </table>
         <table>
           <tr><th>GSX Code</th><th>ความหมาย</th></tr>
@@ -1970,10 +1970,10 @@ BE Weekly  = BE Monthly ÷ 4.33 สัปดาห์ต่อเดือน
       <h3>🗂 Group Type — หมายความว่าอะไร?</h3>
       <table>
         <tr><th>Group Type</th><th>ความหมาย</th><th>ลักษณะ</th></tr>
-        <tr><td><b>🏪 iCare Standalone</b></td><td>ร้าน iCare ล้วน ไม่มี S7/APP ในห้าง</td><td>จัดการ service เองทั้งหมด</td></tr>
-        <tr><td><b>🔗 iCare with APP</b></td><td>iCare ที่มี S7/APP อยู่ในห้างเดียวกัน</td><td>รับงาน Drop จาก APP</td></tr>
-        <tr><td><b>🔵 APP with iCare</b></td><td>ร้าน S7/APP ที่มี iCare อยู่ในห้างเดียวกัน</td><td>ส่งงาน Drop ไป iCare</td></tr>
-        <tr><td><b>🔷 APP Standalone</b></td><td>ร้าน S7/APP ล้วน ไม่มี iCare ในห้าง</td><td>ใช้ Delivery/Drop_APP ส่งต่อ</td></tr>
+        <tr><td><b>🏪 iCare Standalone</b></td><td>ร้าน iCare ล้วน ไม่มี S7/APP ในห้าง</td><td>-</td></tr>
+        <tr><td><b>🔗 iCare with APP</b></td><td>iCare ที่มี S7/APP อยู่ในห้างเดียวกัน</td><td>-</td></tr>
+        <tr><td><b>🔵 APP with iCare</b></td><td>ร้าน S7/APP ที่มี iCare อยู่ในห้างเดียวกัน</td><td>-</td></tr>
+        <tr><td><b>🔷 APP Standalone</b></td><td>ร้าน S7/APP ล้วน ไม่มี iCare ในห้าง</td><td>-</td></tr>
       </table>
     </div>
 
@@ -2279,7 +2279,7 @@ function renderPL(){
   <div id="plModal" style="display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,0.78);
     align-items:center;justify-content:center;" onclick="if(event.target===this)closePlModal()">
     <div style="background:#161616;border:1px solid #2a2a2a;border-radius:14px;padding:24px;
-      width:min(860px,96vw);max-height:92vh;overflow-y:auto;position:relative;">
+      width:min(980px,96vw);max-height:94vh;overflow-y:auto;position:relative;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
         <div>
           <div style="font-size:15px;font-weight:700;" id="plModalTitle">P&L Detail</div>
@@ -2370,51 +2370,158 @@ function showPlModal(branchId){
   // monthly_pl_26 มีเสมอ — inject โดย injectMonthlyEstimates() ถ้าไม่มีจาก Apps Script
   const pl      = b.monthly_pl_26.slice(0, nM);
   // Revenue ดึงจาก PL_DATA เท่านั้น (ไม่ใช้ Revenue sheet เพื่อให้ April ที่ยังไม่มี P&L แสดง ฿0)
-  const mRev26  = pl.map(m => m.rev  || 0);
-  const mGP26   = pl.map(m => m.gp   || 0);
-  const mFixed26= pl.map(m => m.fixed || 0);
-  const mVar26  = pl.map(m => m.variable || 0);
-  const mRent26 = pl.map(m => m.rental || 0);
-  const mDA26   = pl.map(m => m.da   || 0);
-  // Other Exp. = Total Expenses − Personnel − Commission − Rental − D&A (ใช้ safe values เพื่อกัน NaN)
-  const mOther26= pl.map((m,i)=>Math.max(0, (m.expenses||0) - mFixed26[i] - mVar26[i] - mRent26[i] - mDA26[i]));
-  const mEbit26 = pl.map(m => m.ebit || 0);
+  const mRev26     = pl.map(m => m.rev        || 0);
+  const mGP26      = pl.map(m => m.gp         || 0);
+  const mFixed26   = pl.map(m => m.fixed      || 0);
+  const mVar26     = pl.map(m => m.variable   || 0);
+  const mRent26    = pl.map(m => m.rental     || 0);
+  const mDA26      = pl.map(m => m.da         || 0);
+  const mWH26      = pl.map(m => m.wh         || 0);
+  const mMkt26     = pl.map(m => m.mkt        || 0);
+  const mSvcFee26  = pl.map(m => m.svcfee     || 0);
+  const mUtil26    = pl.map(m => m.util       || 0);
+  const mInstall26 = pl.map(m => m.install    || 0);
+  const mCC26      = pl.map(m => m.cc         || 0);
+  const mOffice26  = pl.map(m => m.office     || 0);
+  const mOtherSt26 = pl.map(m => m.otherStore || 0);
+  const mTotalExp26= pl.map(m => m.expenses   || 0);
+  const mEbit26    = pl.map(m => m.ebit       || 0);
 
   // MoM% for last 2 months
   function mom(arr){ if(arr.length<2||!arr[arr.length-2]) return '—'; const d=((arr[arr.length-1]-arr[arr.length-2])/Math.abs(arr[arr.length-2])*100); return (d>=0?'▲':'▼')+Math.abs(d).toFixed(1)+'%'; }
   function momColor(arr){ if(arr.length<2) return '#888'; return arr[arr.length-1]>=arr[arr.length-2]?'#81C784':'#EF9A9A'; }
   function momColorInv(arr){ if(arr.length<2) return '#888'; return arr[arr.length-1]<=arr[arr.length-2]?'#81C784':'#EF9A9A'; } // cost: lower=good
 
-  // YTD สำหรับ Rental และ D&A — ใช้จาก pl_26 ถ้ามี ไม่มีคำนวณจาก monthly sum
-  const ytdRental = p26.rental != null ? p26.rental : mRent26.reduce((s,v)=>s+v,0);
-  const ytdDA     = p26.da     != null ? p26.da     : mDA26.reduce((s,v)=>s+v,0);
-  const ytdOther  = Math.max(0, (p26.expenses||0) - (p26.fixed||0) - (p26.variable||0) - ytdRental - ytdDA);
+  // YTD — ใช้จาก pl_26 ถ้ามี ไม่มีคำนวณจาก monthly sum
+  const sum = arr => arr.reduce((s,v)=>s+v,0);
+  const ytdRental   = p26.rental    != null ? p26.rental    : sum(mRent26);
+  const ytdDA       = p26.da        != null ? p26.da        : sum(mDA26);
+  const ytdWH       = p26.wh        != null ? p26.wh        : sum(mWH26);
+  const ytdMkt      = p26.mkt       != null ? p26.mkt       : sum(mMkt26);
+  const ytdSvcFee   = p26.svcfee    != null ? p26.svcfee    : sum(mSvcFee26);
+  const ytdUtil     = p26.util      != null ? p26.util      : sum(mUtil26);
+  const ytdInstall  = p26.install   != null ? p26.install   : sum(mInstall26);
+  const ytdCC       = p26.cc        != null ? p26.cc        : sum(mCC26);
+  const ytdOffice   = p26.office    != null ? p26.office    : sum(mOffice26);
+  const ytdOtherSt  = p26.otherStore!= null ? p26.otherStore: sum(mOtherSt26);
+  const ytdTotalExp = p26.expenses  != null ? p26.expenses  : sum(mTotalExp26);
+
+  // expense color helper
+  const ec = '#EF9A9A'; // แดงอ่อน = ค่าใช้จ่าย
 
   const rows=[
-    {label:'Revenue',       arr:mRev26,   ytd:p26.rev,      inv:false, bold:true,  color:'var(--text)'},
-    {label:'Gross Profit',  arr:mGP26,    ytd:p26.gp,       inv:false, bold:false, color:'#81C784'},
-    {label:'Personnel',     arr:mFixed26, ytd:p26.fixed,    inv:true,  bold:false, color:'#EF9A9A'},
-    {label:'Commission',    arr:mVar26,   ytd:p26.variable, inv:true,  bold:false, color:'#EF9A9A'},
-    {label:'Rental',        arr:mRent26,  ytd:ytdRental,    inv:true,  bold:false, color:'#FFA726'},
-    {label:'D&A',           arr:mDA26,    ytd:ytdDA,        inv:true,  bold:false, color:'#CE93D8'},
-    {label:'Other Exp.',    arr:mOther26, ytd:ytdOther,     inv:true,  bold:false, color:'var(--muted)'},
-    {label:'EBIT',          arr:mEbit26,  ytd:p26.ebit,     inv:false, bold:true,  color: p26.ebit>=0?'#81C784':'#EF9A9A'},
+    {label:'Revenue',              arr:mRev26,     ytd:p26.rev||0,      inv:false, bold:true,  sep:false, color:'var(--text)'},
+    {label:'Gross Profit',         arr:mGP26,      ytd:p26.gp||0,       inv:false, bold:false, sep:false, color:'#81C784'},
+    {label:'──── Expenses ────',   arr:null,        ytd:null,             inv:false, bold:false, sep:true,  color:'var(--dim)'},
+    {label:'  Personnel',          arr:mFixed26,   ytd:p26.fixed||0,    inv:true,  bold:false, sep:false, color:ec},
+    {label:'  Commission',         arr:mVar26,     ytd:p26.variable||0, inv:true,  bold:false, sep:false, color:ec},
+    {label:'  Rental',             arr:mRent26,    ytd:ytdRental,        inv:true,  bold:false, sep:false, color:'#FFA726'},
+    {label:'  D&A',                arr:mDA26,      ytd:ytdDA,            inv:true,  bold:false, sep:false, color:'#CE93D8'},
+    {label:'  WH & Logistic',      arr:mWH26,      ytd:ytdWH,            inv:true,  bold:false, sep:false, color:ec},
+    {label:'  Marketing',          arr:mMkt26,     ytd:ytdMkt,           inv:true,  bold:false, sep:false, color:ec},
+    {label:'  Service Fee',        arr:mSvcFee26,  ytd:ytdSvcFee,        inv:true,  bold:false, sep:false, color:ec},
+    {label:'  Utilities',          arr:mUtil26,    ytd:ytdUtil,          inv:true,  bold:false, sep:false, color:ec},
+    {label:'  Installment fee',    arr:mInstall26, ytd:ytdInstall,       inv:true,  bold:false, sep:false, color:ec},
+    {label:'  Credit card',        arr:mCC26,      ytd:ytdCC,            inv:true,  bold:false, sep:false, color:ec},
+    {label:'  Office supplies',    arr:mOffice26,  ytd:ytdOffice,        inv:true,  bold:false, sep:false, color:ec},
+    {label:'  Other exp.',         arr:mOtherSt26, ytd:ytdOtherSt,      inv:true,  bold:false, sep:false, color:'var(--muted)'},
+    {label:'Total Expenses',       arr:mTotalExp26,ytd:ytdTotalExp,      inv:true,  bold:true,  sep:false, color:'#EF5350'},
+    {label:'EBIT',                 arr:mEbit26,    ytd:p26.ebit||0,      inv:false, bold:true,  sep:false, color: (p26.ebit||0)>=0?'#81C784':'#EF5350'},
   ];
 
   const lastMLabel = mLabels.length>=2 ? `${mLabels[mLabels.length-2]}→${mLabels[mLabels.length-1]}` : '';
 
   const tableRows = rows.map(r=>{
-    const mc = r.arr.slice(0,nM).map(v=>`<td style="text-align:right;padding:5px 10px;color:${r.color};${r.bold?'font-weight:700;':''}">${v<0?'-':v>0?'':''  }฿${Math.abs(v)>1000?fmtK(Math.abs(v)):Math.abs(v)}</td>`).join('');
+    if(r.sep) return `<tr><td colspan="${nM+3}" style="padding:4px 10px;font-size:10px;color:var(--dim);border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:rgba(255,255,255,0.02);">${r.label}</td></tr>`;
+    const mc = r.arr.slice(0,nM).map(v=>`<td style="text-align:right;padding:4px 10px;color:${r.color};${r.bold?'font-weight:700;':''}">${v<0?'-':''}฿${Math.abs(v)>1000?fmtK(Math.abs(v)):Math.abs(v)}</td>`).join('');
     const pendCells = Array(Math.max(0,3-nM)).fill(0).map(()=>`<td style="text-align:right;color:var(--dim);">⏳</td>`).join('');
     const mc2 = r.arr.length>=2 ? mom(r.arr) : '—';
     const mc2c = r.inv ? momColorInv(r.arr) : momColor(r.arr);
-    return `<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-      <td style="padding:5px 10px;${r.bold?'font-weight:800;font-size:13px;':''}">${r.label}</td>
+    const rowBg = r.bold ? 'background:rgba(255,255,255,0.03);' : '';
+    return `<tr style="border-bottom:1px solid rgba(255,255,255,0.04);${rowBg}">
+      <td style="padding:4px 10px;${r.bold?'font-weight:800;font-size:12px;':'font-size:11px;'}">${r.label}</td>
       ${mc}${pendCells}
-      <td style="text-align:right;padding:5px 10px;font-weight:700;color:${mc2c};">${mc2}</td>
-      <td style="text-align:right;padding:5px 10px;font-weight:700;color:${r.color};">${r.ytd<0?'-':''}฿${fmtK(Math.abs(r.ytd))}</td>
+      <td style="text-align:right;padding:4px 10px;font-weight:700;color:${mc2c};">${mc2}</td>
+      <td style="text-align:right;padding:4px 10px;font-weight:700;color:${r.color};">${r.ytd<0?'-':''}฿${fmtK(Math.abs(r.ytd))}</td>
     </tr>`;
   }).join('');
+
+  // ── Breakeven & Store Contribute Calculation ─────────────────
+  const ytdRev   = p26.rev || sum(mRev26);
+  const ytdGP    = p26.gp  || sum(mGP26);
+  const gpMargin = ytdRev > 0 ? ytdGP / ytdRev : 0;
+
+  // Fixed = ทุกอย่างยกเว้น Commission, Installment, CC (variable by nature)
+  const fixedCosts = (p26.fixed||0) + ytdRental + ytdDA + ytdWH + ytdMkt +
+                     ytdSvcFee + ytdUtil + ytdOffice + ytdOtherSt;
+  const variableCosts = (p26.variable||0) + ytdInstall + ytdCC;
+
+  // BE Revenue = Fixed Costs ÷ GP Margin%
+  const beRevenue = gpMargin > 0 ? Math.round(fixedCosts / gpMargin) : 0;
+  const beGap     = ytdRev - beRevenue; // + = เกินจุดคุ้มทุน, - = ยังไม่ถึง
+  const bePct     = beRevenue > 0 ? Math.min(200, Math.round(ytdRev / beRevenue * 100)) : 0;
+
+  // Store Contribute = GP − Fixed Costs
+  const storeContribute = ytdGP - fixedCosts;
+  const targetContribute = b.targetContribute || 0;
+  const contGap = storeContribute - targetContribute;
+
+  const beColor  = beGap >= 0 ? '#81C784' : '#EF5350';
+  const beIcon   = beGap >= 0 ? '✅' : '⚠️';
+  const cColor   = storeContribute >= targetContribute ? '#81C784' : '#EF5350';
+
+  const beBarW = Math.min(100, bePct) + '%';
+  const beBarColor = bePct >= 100 ? '#66BB6A' : bePct >= 80 ? '#FFA726' : '#EF5350';
+
+  const beSection = `
+    <div style="margin-bottom:16px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;overflow:hidden;">
+      <!-- Header -->
+      <div style="background:rgba(255,255,255,0.05);padding:8px 14px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">🎯 จุดคุ้มทุน (Break-even Analysis)</span>
+        <span style="font-size:10px;color:var(--dim);">GP Margin: ${(gpMargin*100).toFixed(1)}%  |  Fixed: ฿${fmtK(fixedCosts)}</span>
+      </div>
+      <!-- BE Row -->
+      <div style="padding:12px 14px;display:flex;gap:24px;flex-wrap:wrap;align-items:center;">
+        <div>
+          <div style="font-size:10px;color:var(--muted);">BE Revenue ที่ต้องทำ</div>
+          <div style="font-size:18px;font-weight:800;color:#64B5F6;">฿${fmtK(beRevenue)}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);">Revenue จริง YTD</div>
+          <div style="font-size:18px;font-weight:800;color:var(--text);">฿${fmtK(ytdRev)}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);">${beIcon} ${beGap>=0?'เกินจุดคุ้มทุน':'ยังขาดอยู่'}</div>
+          <div style="font-size:18px;font-weight:800;color:${beColor};">${beGap>=0?'+':''}฿${fmtK(Math.abs(beGap))}</div>
+        </div>
+        <div style="flex:1;min-width:120px;">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">Progress to BE: ${bePct}%</div>
+          <div style="background:rgba(255,255,255,0.08);border-radius:4px;height:8px;overflow:hidden;">
+            <div style="height:100%;width:${beBarW};background:${beBarColor};border-radius:4px;transition:width .3s;"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Store Contribute Row -->
+      <div style="border-top:1px solid rgba(255,255,255,0.06);padding:10px 14px;display:flex;gap:24px;flex-wrap:wrap;align-items:center;background:rgba(255,255,255,0.02);">
+        <div>
+          <div style="font-size:10px;color:var(--muted);">📊 Store Contribute (GP − Fixed)</div>
+          <div style="font-size:16px;font-weight:800;color:${cColor};">${storeContribute>=0?'+':''}฿${fmtK(Math.abs(storeContribute))}</div>
+        </div>
+        ${targetContribute>0?`
+        <div>
+          <div style="font-size:10px;color:var(--muted);">Target Contribute</div>
+          <div style="font-size:16px;font-weight:700;color:#FFD54F;">฿${fmtK(targetContribute)}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);">Gap vs Target</div>
+          <div style="font-size:16px;font-weight:800;color:${cColor};">${contGap>=0?'+':''}฿${fmtK(Math.abs(contGap))}</div>
+        </div>`:'<div style="font-size:10px;color:var(--dim);">Target Contribute: ไม่มีข้อมูล</div>'}
+        <div style="margin-left:auto;font-size:10px;color:var(--dim);text-align:right;">
+          Fixed = Personnel+Rental+D&A+WH&Log+<br>Marketing+SvcFee+Util+Office+Other<br>
+          Variable = Commission+Installment+CC
+        </div>
+      </div>
+    </div>`;
 
   // Monthly EBIT 12-month cards
   const allMonths=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
@@ -2447,8 +2554,8 @@ function showPlModal(branchId){
 
   document.getElementById('plModalTitle').textContent=`P&L Detail — ${b.branch_id}: ${brName}`;
   document.getElementById('plModalBody').innerHTML=`
-    <div style="overflow-x:auto;margin-bottom:18px;">
-      <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:580px;">
+    <div style="overflow-x:auto;margin-bottom:14px;">
+      <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:640px;">
         <thead>
           <tr style="border-bottom:1px solid var(--border);">
             <th style="text-align:left;padding:6px 10px;color:var(--muted);">P&L Item</th>
@@ -2461,6 +2568,8 @@ function showPlModal(branchId){
         <tbody>${tableRows}</tbody>
       </table>
     </div>
+
+    ${beSection}
 
     <!-- Monthly EBIT 12-month -->
     <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
@@ -2476,7 +2585,7 @@ function showPlModal(branchId){
       ${worstM!=='—'?`<span>เดือนแย่สุด: <b style="color:#EF5350;">${worstM} (${fmtK(worstV)})</b></span>`:''}
     </div>
     <div style="font-size:10px;color:var(--dim);margin-top:8px;">
-      * Revenue · GP · Personnel · Commission · Rental · D&A · EBIT ดึงจาก Google Sheets PL_DATA (ข้อมูลจริงรายเดือน) · Other Exp. คำนวณจาก Total Expenses − items ข้างต้น
+      * ข้อมูลทั้งหมดดึงจาก Google Sheets PL_DATA (col 18-31) รายเดือน · BE Revenue = Fixed Costs ÷ GP Margin% · Store Contribute = GP − Fixed Costs
     </div>`;
 
   document.getElementById('plModal').style.display='flex';
