@@ -2283,8 +2283,8 @@ function renderPL(){
 
   </div>
 
-  <!-- TARGET CALCULATOR MODAL -->
-  <div id="targetCalcModal" style="display:none;position:fixed;inset:0;z-index:700;background:rgba(0,0,0,0.82);
+  <!-- TARGET CALCULATOR MODAL: injected dynamically by _ensureTargetCalcModal() -->
+  <div id="targetCalcModal" style="display:none!important;" style="display:none;position:fixed;inset:0;z-index:700;background:rgba(0,0,0,0.82);
     align-items:center;justify-content:center;" onclick="if(event.target===this)closeTargetCalc()">
     <div style="background:#161616;border:1px solid #2a2a2a;border-radius:14px;padding:24px;
       width:min(780px,96vw);max-height:94vh;overflow-y:auto;position:relative;">
@@ -2708,7 +2708,55 @@ function closePlModal(){
 // ── TARGET CALCULATOR ────────────────────────────────────────
 let _calcBranch = null;
 
+/** สร้าง modal HTML และ append เข้า body ถ้ายังไม่มี (ใช้เมื่อ renderPL ยังไม่ถูกเรียก) */
+function _ensureTargetCalcModal() {
+  if (document.getElementById('targetCalcModal')) {
+    // มีแล้ว — แต่ถ้า display:none!important ให้แทนที่ด้วยของจริง
+    const existing = document.getElementById('targetCalcModal');
+    if (existing.style.cssText.includes('!important') || !existing.children.length) {
+      existing.remove();
+    } else { return; }
+  }
+  const el = document.createElement('div');
+  el.innerHTML = `<div id="targetCalcModal" style="display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,0.82);align-items:center;justify-content:center;" onclick="if(event.target===this)closeTargetCalc()">
+    <div style="background:#161616;border:1px solid #2a2a2a;border-radius:14px;padding:24px;width:min(780px,96vw);max-height:94vh;overflow-y:auto;position:relative;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div>
+          <div style="font-size:15px;font-weight:700;">🧮 Revenue Target Calculator</div>
+          <div id="calcModalSub" style="font-size:11px;color:var(--muted);">คำนวณ Revenue ที่ต้องทำเพื่อถึง Store Contribute Target</div>
+        </div>
+        <button onclick="closeTargetCalc()" style="background:none;border:1px solid #333;color:#888;padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;">✕ ปิด</button>
+      </div>
+      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:16px;margin-bottom:16px;">
+        <div style="font-size:10px;color:#aaa;margin-bottom:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">📥 ตัวแปรที่ใช้คำนวณ — ปรับได้เพื่อดู Scenario</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div><label style="font-size:10px;color:#aaa;display:block;margin-bottom:4px;">🎯 Target Contribute (฿/เดือน)</label>
+            <input id="ci_target" type="number" step="1000" oninput="calcUpdate()" style="width:100%;background:#222;border:1px solid #444;color:#FFD54F;border-radius:6px;padding:8px 10px;font-size:14px;font-weight:700;box-sizing:border-box;"></div>
+          <div><label style="font-size:10px;color:#aaa;display:block;margin-bottom:4px;">📈 GP Margin % (จากเดือนล่าสุด)</label>
+            <div style="display:flex;align-items:center;gap:6px;"><input id="ci_gp" type="number" step="0.1" min="1" max="100" oninput="calcUpdate()" style="flex:1;background:#222;border:1px solid #444;color:#81C784;border-radius:6px;padding:8px 10px;font-size:14px;font-weight:700;"><span style="color:#aaa;font-size:13px;">%</span></div></div>
+          <div><label style="font-size:10px;color:#aaa;display:block;margin-bottom:4px;">🔒 Fixed Costs (฿/เดือน) <span style="color:#555;">Personnel+Rental+D&A+อื่นๆ</span></label>
+            <input id="ci_fixed" type="number" step="1000" oninput="calcUpdate()" style="width:100%;background:#222;border:1px solid #444;color:#EF9A9A;border-radius:6px;padding:8px 10px;font-size:14px;font-weight:700;box-sizing:border-box;"></div>
+          <div><label style="font-size:10px;color:#aaa;display:block;margin-bottom:4px;">💰 Revenue ที่ทำได้แล้วเดือนนี้ (MTD)</label>
+            <input id="ci_rev_mtd" type="number" step="1000" oninput="calcUpdate()" style="width:100%;background:#222;border:1px solid #444;color:#64B5F6;border-radius:6px;padding:8px 10px;font-size:14px;font-weight:700;box-sizing:border-box;" value="0"></div>
+          <div><label style="font-size:10px;color:#aaa;display:block;margin-bottom:4px;">📅 วันทำการที่ผ่านไปแล้ว</label>
+            <input id="ci_elapsed" type="number" min="1" max="31" oninput="calcUpdate()" style="width:100%;background:#222;border:1px solid #444;color:#eee;border-radius:6px;padding:8px 10px;font-size:14px;font-weight:700;box-sizing:border-box;"></div>
+          <div><label style="font-size:10px;color:#aaa;display:block;margin-bottom:4px;">📅 วันทำการทั้งเดือน</label>
+            <input id="ci_total" type="number" min="1" max="31" oninput="calcUpdate()" style="width:100%;background:#222;border:1px solid #444;color:#eee;border-radius:6px;padding:8px 10px;font-size:14px;font-weight:700;box-sizing:border-box;" value="22"></div>
+        </div>
+      </div>
+      <div id="calcResult" style="margin-bottom:16px;"></div>
+      <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:14px;">
+        <div style="font-size:10px;color:#aaa;margin-bottom:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">🔀 Scenario Analysis</div>
+        <div id="calcScenarioBody" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:11px;"></div>
+      </div>
+      <div style="font-size:10px;color:#555;margin-top:12px;">* ค่าอ้างอิงดึงจาก P&L เดือนล่าสุด · Revenue ที่ทำ MTD ให้ใส่เองเพราะเดือนปัจจุบันยังไม่ปิด</div>
+    </div>
+  </div>`;
+  document.body.appendChild(el.firstChild);
+}
+
 function showTargetCalc(branchId) {
+  _ensureTargetCalcModal();
   const branches = getAccessibleBranches();
   const b = branches.find(x => x.branch_id === branchId);
   if (!b) return;
