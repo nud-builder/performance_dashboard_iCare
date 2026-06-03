@@ -2328,7 +2328,7 @@ function renderPL(){
 
           <div>
             <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">
-              🔒 Fixed Costs (฿/เดือน) <span style="color:var(--dim);">Personnel+Rental+D&A+อื่นๆ</span>
+              🔒 Total Expenses (฿/เดือน) <span style="color:var(--dim);">col 31 — Contribution = GP − Total Exp</span>
             </label>
             <input id="ci_fixed" type="number" step="1000" oninput="calcUpdate()"
               style="width:100%;background:#222;border:1px solid #444;color:#EF9A9A;border-radius:6px;
@@ -2566,17 +2566,13 @@ function showPlModal(branchId){
   const mthGP    = lastPL.gp       || 0;
   const gpMargin = mthRev > 0 ? mthGP / mthRev : 0;
 
-  // Fixed costs เดือนล่าสุด
-  const mthFixed   = (lastPL.fixed||0) + (lastPL.rental||0) + (lastPL.da||0) +
-                     (lastPL.wh||0) + (lastPL.mkt||0) + (lastPL.svcfee||0) +
-                     (lastPL.util||0) + (lastPL.office||0) + (lastPL.otherStore||0);
-  const mthVariable= (lastPL.variable||0) + (lastPL.install||0) + (lastPL.cc||0);
+  // Total Expenses เดือนล่าสุด — ใช้ตรงจาก col 31 (ตรงกับวิธีคิด Contribution = GP − Total Expenses)
+  const mthTotalExp = lastPL.expenses || 0;
 
   // alias สำหรับ section ด้านล่าง
   const ytdRev     = mthRev;
   const ytdGP      = mthGP;
-  const fixedCosts = mthFixed;
-  const variableCosts = mthVariable;
+  const fixedCosts = mthTotalExp;   // = Total Expenses เดือนล่าสุด
 
   // BE Revenue = Fixed Costs ÷ GP Margin%
   const beRevenue = gpMargin > 0 ? Math.round(fixedCosts / gpMargin) : 0;
@@ -2600,7 +2596,7 @@ function showPlModal(branchId){
       <!-- Header -->
       <div style="background:rgba(255,255,255,0.05);padding:8px 14px;display:flex;justify-content:space-between;align-items:center;">
         <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">🎯 จุดคุ้มทุน (Break-even Analysis)</span>
-        <span style="font-size:10px;color:var(--dim);">อ้างอิง: ${lastLabel}  |  GP Margin: ${(gpMargin*100).toFixed(1)}%  |  Fixed: ฿${fmt(fixedCosts)}</span>
+        <span style="font-size:10px;color:var(--dim);">อ้างอิง: ${lastLabel}  |  GP Margin: ${(gpMargin*100).toFixed(1)}%  |  Total Exp: ฿${fmt(fixedCosts)}</span>
       </div>
       <!-- BE Row -->
       <div style="padding:12px 14px;display:flex;gap:24px;flex-wrap:wrap;align-items:center;">
@@ -2639,8 +2635,8 @@ function showPlModal(branchId){
           <div style="font-size:16px;font-weight:800;color:${cColor};">${contGap>=0?'+':''}฿${fmt(Math.abs(contGap))}</div>
         </div>`:'<div style="font-size:10px;color:var(--dim);">Target Contribute: ไม่มีข้อมูล</div>'}
         <div style="margin-left:auto;font-size:10px;color:var(--dim);text-align:right;">
-          Fixed = Personnel+Rental+D&A+WH&Log+<br>Marketing+SvcFee+Util+Office+Other<br>
-          Variable = Commission+Installment+CC
+          Total Expenses (col 31) = ทุกค่าใช้จ่ายรวม<br>
+          Contribute = GP − Total Expenses
         </div>
       </div>
     </div>`;
@@ -2707,7 +2703,7 @@ function showPlModal(branchId){
       ${worstM!=='—'?`<span>เดือนแย่สุด: <b style="color:#EF5350;">${worstM} (${fmtK(worstV)})</b></span>`:''}
     </div>
     <div style="font-size:10px;color:var(--dim);margin-top:8px;">
-      * ข้อมูลทั้งหมดดึงจาก Google Sheets PL_DATA (col 18-31) รายเดือน · BE Revenue = Fixed Costs ÷ GP Margin% · Store Contribute = GP − Fixed Costs
+      * อ้างอิงเดือนล่าสุด · สูตร: BE Revenue = Total Expenses ÷ GP Margin% · Contribution = GP − Total Expenses
     </div>`;
 
   document.getElementById('plModal').style.display='flex';
@@ -2748,7 +2744,7 @@ function _ensureTargetCalcModal() {
             <input id="ci_target" type="number" step="1000" oninput="calcUpdate()" style="width:100%;background:#222;border:1px solid #444;color:#FFD54F;border-radius:6px;padding:8px 10px;font-size:14px;font-weight:700;box-sizing:border-box;"></div>
           <div><label style="font-size:10px;color:#aaa;display:block;margin-bottom:4px;">📈 GP Margin % (จากเดือนล่าสุด)</label>
             <div style="display:flex;align-items:center;gap:6px;"><input id="ci_gp" type="number" step="0.1" min="1" max="100" oninput="calcUpdate()" style="flex:1;background:#222;border:1px solid #444;color:#81C784;border-radius:6px;padding:8px 10px;font-size:14px;font-weight:700;"><span style="color:#aaa;font-size:13px;">%</span></div></div>
-          <div><label style="font-size:10px;color:#aaa;display:block;margin-bottom:4px;">🔒 Fixed Costs (฿/เดือน) <span style="color:#555;">Personnel+Rental+D&A+อื่นๆ</span></label>
+          <div><label style="font-size:10px;color:#aaa;display:block;margin-bottom:4px;">🔒 Total Expenses (฿/เดือน) <span style="color:#555;">col 31 — Contribution = GP − Total Exp</span></label>
             <input id="ci_fixed" type="number" step="1000" oninput="calcUpdate()" style="width:100%;background:#222;border:1px solid #444;color:#EF9A9A;border-radius:6px;padding:8px 10px;font-size:14px;font-weight:700;box-sizing:border-box;"></div>
           <div><label style="font-size:10px;color:#aaa;display:block;margin-bottom:4px;">💰 Revenue ที่ทำได้แล้วเดือนนี้ (MTD)</label>
             <input id="ci_rev_mtd" type="number" step="1000" oninput="calcUpdate()" style="width:100%;background:#222;border:1px solid #444;color:#64B5F6;border-radius:6px;padding:8px 10px;font-size:14px;font-weight:700;box-sizing:border-box;" value="0"></div>
@@ -2786,14 +2782,10 @@ function showTargetCalc(branchId) {
   const lastGP   = lastM.gp   || b.pl_26.gp   || 0;
   const gpMargin = lastRev > 0 ? parseFloat((lastGP / lastRev * 100).toFixed(1)) : 30;
 
-  // Fixed Costs เดือนล่าสุด
-  const lastFixed = (lastM.fixed||0) + (lastM.rental||0) + (lastM.da||0) +
-                    (lastM.wh||0) + (lastM.mkt||0) + (lastM.svcfee||0) +
-                    (lastM.util||0) + (lastM.office||0) + (lastM.otherStore||0);
-  // ถ้าไม่มีรายละเอียด fallback จาก YTD / จำนวนเดือน
+  // Total Expenses เดือนล่าสุด — ตรงกับวิธีคิด Contribution = GP − Total Expenses
   const nM = pl.length || 1;
-  const fixedFallback = Math.round(((b.pl_26.expenses||0) - (b.pl_26.variable||0)) / nM);
-  const fixedDefault  = lastFixed > 0 ? lastFixed : fixedFallback;
+  const expFallback   = Math.round((b.pl_26.expenses||0) / nM);
+  const fixedDefault  = (lastM.expenses||0) > 0 ? (lastM.expenses||0) : expFallback;
 
   // Target Contribute
   const targetC = b.targetContribute || 0;
