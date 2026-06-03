@@ -1277,7 +1277,10 @@ function renderOverview(){
             <td class="tNum">${b.ytd_gsx_26}</td>
             <td class="tNum" style="${colStyle(gd)}">${gd}</td>
             <td class="tNum">${gp.toFixed(1)}%</td>
-            <td><button onclick="drillDown(${b.branch_id})" style="background:none;border:1px solid var(--border);color:var(--muted);padding:3px 8px;border-radius:4px;cursor:pointer;font-size:10px;">Detail ›</button></td>
+            <td style="white-space:nowrap;">
+              <button onclick="drillDown(${b.branch_id})" style="background:none;border:1px solid var(--border);color:var(--muted);padding:3px 8px;border-radius:4px;cursor:pointer;font-size:10px;">Detail ›</button>
+              <button onclick="event.stopPropagation();showTargetCalc(${b.branch_id})" style="margin-left:4px;background:rgba(255,213,79,0.08);border:1px solid rgba(255,213,79,0.3);color:#FFD54F;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:10px;">🧮</button>
+            </td>
           </tr>`;
         }).join('')}
         </tbody>
@@ -1477,6 +1480,11 @@ function renderDetail(bid){
       <select onchange="drillDown(parseInt(this.value))" style="width:240px;">
         ${branches.map(x=>`<option value="${x.branch_id}"${x.branch_id===b.branch_id?' selected':''}>${x.branch_id}: ${x.name.split('-').slice(-2).join('-')}</option>`).join('')}
       </select>
+      <button onclick="showTargetCalc(${b.branch_id})"
+        style="margin-left:auto;background:rgba(255,213,79,0.1);border:1px solid rgba(255,213,79,0.4);
+        color:#FFD54F;padding:6px 16px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;">
+        🧮 คำนวณ Target Revenue
+      </button>
     </div>
     <div style="margin-bottom:20px;">
       <h2 style="font-size:18px;margin-bottom:6px;">${b.branch_id}: ${b.name}</h2>
@@ -2275,6 +2283,106 @@ function renderPL(){
 
   </div>
 
+  <!-- TARGET CALCULATOR MODAL -->
+  <div id="targetCalcModal" style="display:none;position:fixed;inset:0;z-index:700;background:rgba(0,0,0,0.82);
+    align-items:center;justify-content:center;" onclick="if(event.target===this)closeTargetCalc()">
+    <div style="background:#161616;border:1px solid #2a2a2a;border-radius:14px;padding:24px;
+      width:min(780px,96vw);max-height:94vh;overflow-y:auto;position:relative;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div>
+          <div style="font-size:15px;font-weight:700;">🧮 Revenue Target Calculator</div>
+          <div id="calcModalSub" style="font-size:11px;color:var(--muted);">คำนวณ Revenue ที่ต้องทำเพื่อถึง Store Contribute Target</div>
+        </div>
+        <button onclick="closeTargetCalc()" style="background:none;border:1px solid #333;color:#888;
+          padding:4px 12px;border-radius:6px;cursor:pointer;font-size:12px;">✕ ปิด</button>
+      </div>
+
+      <!-- ── Inputs ── -->
+      <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;
+        padding:16px;margin-bottom:16px;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">
+          📥 ตัวแปรที่ใช้คำนวณ — ปรับได้เพื่อดู Scenario
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+
+          <div>
+            <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">
+              🎯 Target Contribute (฿/เดือน)
+            </label>
+            <input id="ci_target" type="number" step="1000" oninput="calcUpdate()"
+              style="width:100%;background:#222;border:1px solid #444;color:#FFD54F;border-radius:6px;
+              padding:8px 10px;font-size:14px;font-weight:700;">
+          </div>
+
+          <div>
+            <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">
+              📈 GP Margin % (จากเดือนล่าสุด)
+            </label>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <input id="ci_gp" type="number" step="0.1" min="1" max="100" oninput="calcUpdate()"
+                style="flex:1;background:#222;border:1px solid #444;color:#81C784;border-radius:6px;
+                padding:8px 10px;font-size:14px;font-weight:700;">
+              <span style="color:var(--muted);font-size:13px;">%</span>
+            </div>
+          </div>
+
+          <div>
+            <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">
+              🔒 Fixed Costs (฿/เดือน) <span style="color:var(--dim);">Personnel+Rental+D&A+อื่นๆ</span>
+            </label>
+            <input id="ci_fixed" type="number" step="1000" oninput="calcUpdate()"
+              style="width:100%;background:#222;border:1px solid #444;color:#EF9A9A;border-radius:6px;
+              padding:8px 10px;font-size:14px;font-weight:700;">
+          </div>
+
+          <div>
+            <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">
+              💰 Revenue ที่ทำได้แล้วเดือนนี้ (MTD)
+            </label>
+            <input id="ci_rev_mtd" type="number" step="1000" oninput="calcUpdate()"
+              style="width:100%;background:#222;border:1px solid #444;color:#64B5F6;border-radius:6px;
+              padding:8px 10px;font-size:14px;font-weight:700;" value="0">
+          </div>
+
+          <div>
+            <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">
+              📅 วันทำการที่ผ่านไปแล้ว
+            </label>
+            <input id="ci_elapsed" type="number" min="1" max="31" oninput="calcUpdate()"
+              style="width:100%;background:#222;border:1px solid #444;color:var(--text);border-radius:6px;
+              padding:8px 10px;font-size:14px;font-weight:700;">
+          </div>
+
+          <div>
+            <label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">
+              📅 วันทำการทั้งเดือน
+            </label>
+            <input id="ci_total" type="number" min="1" max="31" oninput="calcUpdate()"
+              style="width:100%;background:#222;border:1px solid #444;color:var(--text);border-radius:6px;
+              padding:8px 10px;font-size:14px;font-weight:700;" value="22">
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── Results ── -->
+      <div id="calcResult" style="margin-bottom:16px;"></div>
+
+      <!-- ── Scenarios ── -->
+      <div id="calcScenarios" style="background:rgba(255,255,255,0.02);border:1px solid var(--border);
+        border-radius:8px;padding:14px;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;">
+          🔀 Scenario Analysis
+        </div>
+        <div id="calcScenarioBody" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:11px;"></div>
+      </div>
+
+      <div style="font-size:10px;color:var(--dim);margin-top:12px;">
+        * ค่าอ้างอิงดึงจาก P&L เดือนล่าสุด · Revenue ที่ทำ MTD ให้ใส่เองเพราะเดือนปัจจุบันยังไม่ปิด
+      </div>
+    </div>
+  </div>
+
   <!-- P&L DETAIL MODAL -->
   <div id="plModal" style="display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,0.78);
     align-items:center;justify-content:center;" onclick="if(event.target===this)closePlModal()">
@@ -2478,21 +2586,21 @@ function showPlModal(branchId){
       <!-- Header -->
       <div style="background:rgba(255,255,255,0.05);padding:8px 14px;display:flex;justify-content:space-between;align-items:center;">
         <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">🎯 จุดคุ้มทุน (Break-even Analysis)</span>
-        <span style="font-size:10px;color:var(--dim);">GP Margin: ${(gpMargin*100).toFixed(1)}%  |  Fixed: ฿${fmtK(fixedCosts)}</span>
+        <span style="font-size:10px;color:var(--dim);">GP Margin: ${(gpMargin*100).toFixed(1)}%  |  Fixed: ฿${fmt(fixedCosts)}</span>
       </div>
       <!-- BE Row -->
       <div style="padding:12px 14px;display:flex;gap:24px;flex-wrap:wrap;align-items:center;">
         <div>
           <div style="font-size:10px;color:var(--muted);">BE Revenue ที่ต้องทำ</div>
-          <div style="font-size:18px;font-weight:800;color:#64B5F6;">฿${fmtK(beRevenue)}</div>
+          <div style="font-size:18px;font-weight:800;color:#64B5F6;">฿${fmt(beRevenue)}</div>
         </div>
         <div>
           <div style="font-size:10px;color:var(--muted);">Revenue จริง YTD</div>
-          <div style="font-size:18px;font-weight:800;color:var(--text);">฿${fmtK(ytdRev)}</div>
+          <div style="font-size:18px;font-weight:800;color:var(--text);">฿${fmt(ytdRev)}</div>
         </div>
         <div>
           <div style="font-size:10px;color:var(--muted);">${beIcon} ${beGap>=0?'เกินจุดคุ้มทุน':'ยังขาดอยู่'}</div>
-          <div style="font-size:18px;font-weight:800;color:${beColor};">${beGap>=0?'+':''}฿${fmtK(Math.abs(beGap))}</div>
+          <div style="font-size:18px;font-weight:800;color:${beColor};">${beGap>=0?'+':''}฿${fmt(Math.abs(beGap))}</div>
         </div>
         <div style="flex:1;min-width:120px;">
           <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">Progress to BE: ${bePct}%</div>
@@ -2505,16 +2613,16 @@ function showPlModal(branchId){
       <div style="border-top:1px solid rgba(255,255,255,0.06);padding:10px 14px;display:flex;gap:24px;flex-wrap:wrap;align-items:center;background:rgba(255,255,255,0.02);">
         <div>
           <div style="font-size:10px;color:var(--muted);">📊 Store Contribute (GP − Fixed)</div>
-          <div style="font-size:16px;font-weight:800;color:${cColor};">${storeContribute>=0?'+':''}฿${fmtK(Math.abs(storeContribute))}</div>
+          <div style="font-size:16px;font-weight:800;color:${cColor};">${storeContribute>=0?'+':''}฿${fmt(Math.abs(storeContribute))}</div>
         </div>
         ${targetContribute>0?`
         <div>
           <div style="font-size:10px;color:var(--muted);">Target Contribute</div>
-          <div style="font-size:16px;font-weight:700;color:#FFD54F;">฿${fmtK(targetContribute)}</div>
+          <div style="font-size:16px;font-weight:700;color:#FFD54F;">฿${fmt(targetContribute)}</div>
         </div>
         <div>
           <div style="font-size:10px;color:var(--muted);">Gap vs Target</div>
-          <div style="font-size:16px;font-weight:800;color:${cColor};">${contGap>=0?'+':''}฿${fmtK(Math.abs(contGap))}</div>
+          <div style="font-size:16px;font-weight:800;color:${cColor};">${contGap>=0?'+':''}฿${fmt(Math.abs(contGap))}</div>
         </div>`:'<div style="font-size:10px;color:var(--dim);">Target Contribute: ไม่มีข้อมูล</div>'}
         <div style="margin-left:auto;font-size:10px;color:var(--dim);text-align:right;">
           Fixed = Personnel+Rental+D&A+WH&Log+<br>Marketing+SvcFee+Util+Office+Other<br>
@@ -2595,6 +2703,152 @@ function showPlModal(branchId){
 function closePlModal(){
   document.getElementById('plModal').style.display='none';
   document.body.style.overflow='';
+}
+
+// ── TARGET CALCULATOR ────────────────────────────────────────
+let _calcBranch = null;
+
+function showTargetCalc(branchId) {
+  const branches = getAccessibleBranches();
+  const b = branches.find(x => x.branch_id === branchId);
+  if (!b) return;
+  _calcBranch = b;
+
+  // ดึงข้อมูลจากเดือนล่าสุดที่ปิดแล้ว
+  const pl = b.monthly_pl_26 || [];
+  const lastM = pl.length > 0 ? pl[pl.length - 1] : {};
+  const lastLabel = (META.ytd_month_labels_th || []).slice(-1)[0] || '';
+
+  // GP Margin จากเดือนล่าสุด
+  const lastRev  = lastM.rev  || b.pl_26.rev  || 0;
+  const lastGP   = lastM.gp   || b.pl_26.gp   || 0;
+  const gpMargin = lastRev > 0 ? parseFloat((lastGP / lastRev * 100).toFixed(1)) : 30;
+
+  // Fixed Costs เดือนล่าสุด
+  const lastFixed = (lastM.fixed||0) + (lastM.rental||0) + (lastM.da||0) +
+                    (lastM.wh||0) + (lastM.mkt||0) + (lastM.svcfee||0) +
+                    (lastM.util||0) + (lastM.office||0) + (lastM.otherStore||0);
+  // ถ้าไม่มีรายละเอียด fallback จาก YTD / จำนวนเดือน
+  const nM = pl.length || 1;
+  const fixedFallback = Math.round(((b.pl_26.expenses||0) - (b.pl_26.variable||0)) / nM);
+  const fixedDefault  = lastFixed > 0 ? lastFixed : fixedFallback;
+
+  // Target Contribute
+  const targetC = b.targetContribute || 0;
+
+  // วันทำการโดยประมาณ
+  const today = new Date();
+  const elapsed = today.getDate(); // วันที่วันนี้ใช้เป็น proxy
+  const totalDays = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate();
+  const workDays  = Math.round(totalDays * 22/30); // ประมาณ 22 วันทำการ
+  const workElapsed = Math.min(Math.round(elapsed * 22/30), workDays - 1);
+
+  // Fill inputs
+  document.getElementById('ci_target').value  = targetC;
+  document.getElementById('ci_gp').value      = gpMargin;
+  document.getElementById('ci_fixed').value   = fixedDefault;
+  document.getElementById('ci_rev_mtd').value = 0;
+  document.getElementById('ci_elapsed').value = workElapsed;
+  document.getElementById('ci_total').value   = workDays;
+
+  const brName = b.name.split('-').slice(1).join('-') || b.name;
+  document.getElementById('calcModalSub').textContent =
+    `${b.branch_id}: ${brName}  ·  อ้างอิงจากข้อมูล ${lastLabel || 'ล่าสุด'}`;
+
+  calcUpdate();
+  document.getElementById('targetCalcModal').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function calcUpdate() {
+  const target   = parseFloat(document.getElementById('ci_target').value)  || 0;
+  const gpPct    = parseFloat(document.getElementById('ci_gp').value)       || 0;
+  const fixed    = parseFloat(document.getElementById('ci_fixed').value)    || 0;
+  const revMTD   = parseFloat(document.getElementById('ci_rev_mtd').value)  || 0;
+  const elapsed  = parseFloat(document.getElementById('ci_elapsed').value)  || 1;
+  const total    = parseFloat(document.getElementById('ci_total').value)    || 22;
+  const gpFrac   = gpPct / 100;
+
+  // Required Revenue = (Target + Fixed) / GP%
+  const reqRev    = gpFrac > 0 ? Math.round((target + fixed) / gpFrac) : 0;
+  const remaining = Math.max(0, reqRev - revMTD);
+  const daysLeft  = Math.max(1, total - elapsed);
+  const dailyNeed = Math.round(remaining / daysLeft);
+  const progPct   = reqRev > 0 ? Math.min(200, Math.round(revMTD / reqRev * 100)) : 0;
+  const contrib   = Math.round(revMTD * gpFrac - fixed);
+  const contColor = contrib >= target ? '#81C784' : '#EF5350';
+  const revColor  = remaining <= 0 ? '#81C784' : '#EF5350';
+  const barW      = Math.min(100, progPct) + '%';
+  const barColor  = progPct >= 100 ? '#66BB6A' : progPct >= 70 ? '#FFA726' : '#EF5350';
+
+  document.getElementById('calcResult').innerHTML = `
+    <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;
+      padding:16px;margin-bottom:10px;">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:12px;font-weight:700;
+        text-transform:uppercase;letter-spacing:.5px;">📊 ผลการคำนวณ</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px;">
+        <div style="text-align:center;">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">Revenue ที่ต้องทำ (เดือน)</div>
+          <div style="font-size:20px;font-weight:800;color:#64B5F6;">฿${fmt(reqRev)}</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">ทำได้แล้ว MTD</div>
+          <div style="font-size:20px;font-weight:800;color:var(--text);">฿${fmt(revMTD)}</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">${remaining>0?'⚠️ ยังต้องทำอีก':'✅ ถึงเป้าแล้ว'}</div>
+          <div style="font-size:20px;font-weight:800;color:${revColor};">${remaining>0?'':'+'} ฿${fmt(remaining>0?remaining:revMTD-reqRev)}</div>
+        </div>
+      </div>
+      <!-- Progress bar -->
+      <div style="margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:4px;">
+          <span>Progress MTD: ${progPct}%</span>
+          <span>เหลือ ${daysLeft} วันทำการ</span>
+        </div>
+        <div style="background:rgba(255,255,255,0.08);border-radius:4px;height:10px;overflow:hidden;">
+          <div style="height:100%;width:${barW};background:${barColor};border-radius:4px;"></div>
+        </div>
+      </div>
+      <!-- Daily & Contribute -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="background:rgba(100,181,246,0.07);border-radius:6px;padding:10px;text-align:center;">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:2px;">ต้องทำวันละ (${daysLeft} วัน)</div>
+          <div style="font-size:18px;font-weight:800;color:#64B5F6;">฿${fmt(dailyNeed)}</div>
+        </div>
+        <div style="background:rgba(${contrib>=target?'76,175,80':'239,83,80'},0.07);border-radius:6px;padding:10px;text-align:center;">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:2px;">Store Contribute ที่จะได้ (ถ้าทำได้ตาม MTD)</div>
+          <div style="font-size:18px;font-weight:800;color:${contColor};">${contrib>=0?'+':''}฿${fmt(Math.abs(contrib))}</div>
+          <div style="font-size:9px;color:${contColor};">${contrib>=target?'✅ เกิน Target':'⚠️ ยังไม่ถึง Target ฿'+fmt(target)}</div>
+        </div>
+      </div>
+    </div>`;
+
+  // Scenarios
+  const scenarios = [
+    { label: 'GP Margin +2%',   fn: () => { const g=(gpFrac+0.02); return g>0?Math.round((target+fixed)/g):0; } },
+    { label: 'GP Margin −2%',   fn: () => { const g=Math.max(0.01,gpFrac-0.02); return Math.round((target+fixed)/g); } },
+    { label: 'Fixed Cost −5%',  fn: () => gpFrac>0?Math.round((target+fixed*0.95)/gpFrac):0 },
+    { label: 'Fixed Cost −10%', fn: () => gpFrac>0?Math.round((target+fixed*0.90)/gpFrac):0 },
+    { label: 'Target +10%',     fn: () => gpFrac>0?Math.round((target*1.1+fixed)/gpFrac):0 },
+    { label: 'Target −10%',     fn: () => gpFrac>0?Math.round((target*0.9+fixed)/gpFrac):0 },
+  ];
+
+  document.getElementById('calcScenarioBody').innerHTML = scenarios.map(s => {
+    const v = s.fn();
+    const diff = v - reqRev;
+    const dc = diff > 0 ? '#EF9A9A' : '#81C784';
+    return `<div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:6px;padding:8px;text-align:center;">
+      <div style="font-size:9px;color:var(--muted);margin-bottom:3px;">${s.label}</div>
+      <div style="font-size:13px;font-weight:700;color:#64B5F6;">฿${fmt(v)}</div>
+      <div style="font-size:9px;color:${dc};">${diff>=0?'+':''}฿${fmt(Math.abs(diff))}</div>
+    </div>`;
+  }).join('');
+}
+
+function closeTargetCalc() {
+  document.getElementById('targetCalcModal').style.display = 'none';
+  document.body.style.overflow = '';
 }
 </script>
 </body>
